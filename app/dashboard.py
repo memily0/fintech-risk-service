@@ -480,7 +480,6 @@ def main() -> None:
             "Индикаторы стресса",
             "Ставки и ОФЗ",
             "Корреляции",
-            "Индекс стресса",
             "Качество данных",
         ]
     )
@@ -661,20 +660,6 @@ def main() -> None:
             st.plotly_chart(fig, width="stretch", theme=None)
 
     with tabs[4]:
-        st.markdown("Индекс не предсказывает кризис, а агрегирует текущие признаки рыночного стресса в один удобный индикатор.")
-        stress_df, component_columns = build_composite_stress_index(filtered_df)
-        if component_columns:
-            stress_fig = line_chart(stress_df, ["stress_index"], "Композитный индекс стресса", y_title="Композитный Z-score")
-            show_chart_or_info(stress_fig, "Не удалось рассчитать композитный индекс стресса.")
-
-            latest_components = stress_df[["date", *component_columns, "stress_index"]].dropna(how="all").tail(1).T.reset_index()
-            latest_components.columns = ["Компонент", "Последнее значение"]
-            latest_components.loc[latest_components["Компонент"] == "date", "Компонент"] = "Дата"
-            st.dataframe(latest_components, width="stretch", hide_index=True)
-        else:
-            st.info("Недостаточно исходных колонок для расчета композитного индекса стресса.")
-
-    with tabs[5]:
         st.markdown("Проверка качества данных помогает быстро понять покрытие, пропуски и доступность признаков.")
         shape_col, date_col = st.columns(2)
         shape_col.metric("Строки x колонки", f"{filtered_df.shape[0]} x {filtered_df.shape[1]}")
