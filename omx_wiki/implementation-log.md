@@ -66,3 +66,8 @@
 - Re-ran Python compile checks for `app/dashboard.py`, `scripts/train_crisis_model.py`, and `scripts/build_final_dataset.py`.
 - Re-ran `scripts/train_crisis_model.py` to regenerate model predictions, metrics, and sklearn artifacts before commit.
 - Prepared branch `feature/crisis-model-mvp` for publication to `origin` (`memily0/fintech-risk-service.git`).
+
+## [2026-06-04] release | branch published
+
+- Committed MVP-1.0 model and dashboard integration as `e768d23` with message `Add MVP crisis prediction model`.
+- Pushed branch `feature/crisis-model-mvp` to `origin`.
