@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import numpy as np
@@ -16,6 +17,8 @@ st.set_page_config(
 
 
 DATA_PATH = Path(__file__).resolve().parents[1] / "data" / "final_dataset.csv"
+MODEL_PREDICTIONS_PATH = Path(__file__).resolve().parents[1] / "data" / "model_predictions.csv"
+MODEL_METRICS_PATH = Path(__file__).resolve().parents[1] / "data" / "model_metrics.json"
 CHART_BG = "#0e1117"
 CHART_GRID = "rgba(255,255,255,0.12)"
 
@@ -30,6 +33,7 @@ SCALE_ABSOLUTE = "Абсолютные значения"
 SCALE_INDEXED = "Индекс, старт = 100"
 SCALE_ZSCORE = "Z-score"
 SCALE_MODES = [SCALE_ABSOLUTE, SCALE_INDEXED, SCALE_ZSCORE]
+MODEL_HORIZONS = [7, 30, 90]
 
 DEFAULT_INDICATORS = ["usd_rub", "eur_rub", "imoex", "brent", "vix", "sp500"]
 KPI_COLUMNS = [
@@ -69,6 +73,20 @@ LABEL_TO_COL = {
 }
 COL_TO_LABEL = {column: label for label, column in LABEL_TO_COL.items()}
 LABELS = COL_TO_LABEL
+REGIME_LABELS = {
+    "Normal": "Норма",
+    "Watch": "Наблюдение",
+    "Elevated": "Повышенный риск",
+    "Stress": "Стресс",
+    "Crisis": "Кризис",
+}
+REGIME_STYLES = {
+    "Normal": "good",
+    "Watch": "neutral",
+    "Elevated": "neutral",
+    "Stress": "bad",
+    "Crisis": "bad",
+}
 COLOR_MAP = {
     "usd_rub": "#60a5fa",
     "eur_rub": "#2dd4bf",
@@ -110,6 +128,30 @@ def load_data() -> pd.DataFrame:
     print(f"[dashboard] prepared data shape={df.shape}")
     print(f"[dashboard] prepared data dtypes={df.dtypes.astype(str).to_dict()}")
     return df
+
+
+@st.cache_data
+def load_model_predictions() -> pd.DataFrame:
+    if not MODEL_PREDICTIONS_PATH.exists():
+        return pd.DataFrame()
+    df = pd.read_csv(MODEL_PREDICTIONS_PATH)
+    if "date" not in df.columns:
+        return pd.DataFrame()
+    df["date"] = pd.to_datetime(df["date"], errors="coerce")
+    for column in ["horizon_days", "stress_score", "target", "probability", "cv_probability"]:
+        if column in df.columns:
+            df[column] = pd.to_numeric(df[column], errors="coerce")
+    if "stress_event" in df.columns:
+        df["stress_event"] = df["stress_event"].astype(str).str.lower().isin(["true", "1", "1.0"])
+    return df.dropna(subset=["date", "horizon_days"]).sort_values(["horizon_days", "date"]).reset_index(drop=True)
+
+
+@st.cache_data
+def load_model_metrics() -> dict:
+    if not MODEL_METRICS_PATH.exists():
+        return {}
+    with MODEL_METRICS_PATH.open() as file:
+        return json.load(file)
 
 
 def fmt_label(column: str) -> str:
@@ -310,6 +352,97 @@ def render_kpi_card(label: str, value_text: str, delta_text: str, style: str) ->
     """
 
 
+def render_model_card(label: str, value_text: str, caption_text: str, style: str) -> str:
+    return f"""
+    <div class="kpi-card">
+        <div class="kpi-label">{label}</div>
+        <div class="kpi-value">{value_text}</div>
+        <div class="kpi-delta {style}">{caption_text}</div>
+    </div>
+    """
+
+
+def format_probability(value: float | int | None) -> str:
+    if value is None or pd.isna(value):
+        return "н/д"
+    return f"{float(value) * 100:.1f}%"
+
+
+def regime_label(value: str) -> str:
+    return REGIME_LABELS.get(str(value), str(value))
+
+
+def model_metric_for_horizon(metrics: dict, horizon_days: int) -> dict:
+    for horizon in metrics.get("horizons", []):
+        if int(horizon.get("horizon_days", -1)) == int(horizon_days):
+            return horizon
+    return {}
+
+
+def latest_model_row(model_df: pd.DataFrame, horizon_days: int, end_date: pd.Timestamp) -> pd.Series | None:
+    if model_df.empty:
+        return None
+    horizon_df = model_df[(model_df["horizon_days"] == horizon_days) & (model_df["date"] <= end_date)].copy()
+    if horizon_df.empty:
+        return None
+    return horizon_df.dropna(subset=["probability"]).tail(1).squeeze()
+
+
+def probability_chart(model_df: pd.DataFrame, horizon_days: int, title: str) -> go.Figure | None:
+    horizon_df = model_df[model_df["horizon_days"] == horizon_days].dropna(subset=["probability"]).copy()
+    if horizon_df.empty:
+        return None
+
+    fig = go.Figure()
+    fig.add_trace(
+        go.Scatter(
+            x=horizon_df["date"],
+            y=horizon_df["probability"] * 100,
+            name="Вероятность",
+            mode="lines",
+            line=dict(color="#f97316", width=2.6),
+        )
+    )
+    if "cv_probability" in horizon_df.columns and horizon_df["cv_probability"].notna().any():
+        cv_df = horizon_df.dropna(subset=["cv_probability"])
+        fig.add_trace(
+            go.Scatter(
+                x=cv_df["date"],
+                y=cv_df["cv_probability"] * 100,
+                name="Walk-forward прогноз",
+                mode="lines",
+                line=dict(color="#38bdf8", width=1.6, dash="dot"),
+            )
+        )
+    fig.add_trace(
+        go.Scatter(
+            x=horizon_df["date"],
+            y=horizon_df["stress_score"],
+            name="Stress score",
+            mode="lines",
+            yaxis="y2",
+            line=dict(color="#a78bfa", width=1.4),
+        )
+    )
+    for threshold, label in [(20, "Watch"), (40, "Elevated"), (60, "Stress"), (80, "Crisis")]:
+        fig.add_hline(y=threshold, line_dash="dot", line_color="rgba(255,255,255,0.22)", annotation_text=label)
+    fig.update_layout(
+        template="plotly_dark",
+        title=title,
+        height=460,
+        hovermode="x unified",
+        paper_bgcolor=CHART_BG,
+        plot_bgcolor=CHART_BG,
+        font=dict(color="#F5F5F5"),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0),
+        margin=dict(l=20, r=20, t=70, b=20),
+        xaxis=dict(showgrid=True, gridcolor=CHART_GRID, zeroline=False),
+        yaxis=dict(title="Вероятность, %", range=[0, 100], showgrid=True, gridcolor=CHART_GRID, zeroline=False),
+        yaxis2=dict(title="Stress score", overlaying="y", side="right", showgrid=False, zeroline=False),
+    )
+    return fig
+
+
 def rolling_corr(df: pd.DataFrame, left: str, right: str, window: int) -> pd.DataFrame | None:
     if left not in df.columns or right not in df.columns:
         return None
@@ -411,16 +544,19 @@ def inject_styles() -> None:
 
 def main() -> None:
     df = load_data()
+    model_df = load_model_predictions()
+    model_metrics = load_model_metrics()
     inject_styles()
 
     st.title("Дашборд рыночного риска")
-    st.caption("Оперативный мониторинг рыночных индикаторов, стресс-метрик и доходностей ОФЗ.")
+    st.caption("Оперативный мониторинг рыночных индикаторов, стресс-метрик, доходностей ОФЗ и прогноза финансового стресса.")
 
     min_date = df["date"].min().date()
     max_date = df["date"].max().date()
 
     st.sidebar.header("Фильтры")
     regime = st.sidebar.selectbox("Рыночный режим", list(CRISIS_PERIODS.keys()), index=0)
+    model_horizon = st.sidebar.selectbox("Горизонт прогноза, дней", MODEL_HORIZONS, index=1)
     rolling_window = st.sidebar.selectbox("Окно rolling", [7, 14, 30, 60, 90], index=2)
     scale_mode = st.sidebar.selectbox("Режим первого графика", SCALE_MODES, index=0)
 
@@ -463,6 +599,53 @@ def main() -> None:
         st.error("После фильтрации не осталось данных. Измените диапазон дат.")
         return
 
+    latest_prediction = latest_model_row(model_df, model_horizon, filter_end)
+    horizon_metrics = model_metric_for_horizon(model_metrics, model_horizon)
+
+    st.subheader("Прогноз финансового стресса")
+    if latest_prediction is None:
+        st.warning("Модельные прогнозы не найдены. Запустите `python3 scripts/train_crisis_model.py`.")
+    else:
+        risk_style = REGIME_STYLES.get(str(latest_prediction["regime"]), "neutral")
+        metric_cols = st.columns(4)
+        metric_cols[0].markdown(
+            render_model_card(
+                "Вероятность стресса",
+                format_probability(latest_prediction["probability"]),
+                f"горизонт {model_horizon} дней",
+                risk_style,
+            ),
+            unsafe_allow_html=True,
+        )
+        metric_cols[1].markdown(
+            render_model_card(
+                "Режим",
+                regime_label(str(latest_prediction["regime"])),
+                f"на {latest_prediction['date'].date()}",
+                risk_style,
+            ),
+            unsafe_allow_html=True,
+        )
+        metric_cols[2].markdown(
+            render_model_card(
+                "Stress score",
+                f"{latest_prediction['stress_score']:.2f}",
+                "порог события: 1.00",
+                "bad" if latest_prediction["stress_score"] >= 1 else "good",
+            ),
+            unsafe_allow_html=True,
+        )
+        auc_value = horizon_metrics.get("mean_roc_auc")
+        metric_cols[3].markdown(
+            render_model_card(
+                "Walk-forward AUC",
+                "н/д" if auc_value is None else f"{auc_value:.3f}",
+                "по историческим срезам",
+                "neutral",
+            ),
+            unsafe_allow_html=True,
+        )
+
     show_missing_warning(df, KPI_COLUMNS, "KPI блок")
 
     st.subheader("Последний снимок рынка")
@@ -477,6 +660,7 @@ def main() -> None:
     tabs = st.tabs(
         [
             "Обзор рынка",
+            "Прогноз модели",
             "Индикаторы стресса",
             "Ставки и ОФЗ",
             "Корреляции",
@@ -517,6 +701,38 @@ def main() -> None:
         st.caption("График нужен для сопоставления локального российского рынка и глобального риск-аппетита.")
 
     with tabs[1]:
+        if model_df.empty:
+            st.info("Нет модельных прогнозов для отображения.")
+        else:
+            model_filtered_df = model_df[
+                (model_df["horizon_days"] == model_horizon)
+                & (model_df["date"] >= filter_start)
+                & (model_df["date"] <= filter_end)
+            ].copy()
+            show_chart_or_info(
+                probability_chart(model_filtered_df, model_horizon, f"Вероятность финансового стресса на горизонте {model_horizon} дней"),
+                "Нет данных модели для выбранного диапазона.",
+            )
+            if latest_prediction is not None:
+                st.markdown("Ключевые драйверы последнего прогноза")
+                drivers = str(latest_prediction.get("top_drivers", "")).split("; ")
+                st.dataframe(
+                    pd.DataFrame({"Фактор": [driver for driver in drivers if driver]}),
+                    width="stretch",
+                    hide_index=True,
+                )
+
+            if horizon_metrics:
+                folds = pd.DataFrame(horizon_metrics.get("folds", []))
+                summary_cols = st.columns(3)
+                summary_cols[0].metric("Positive rate", f"{horizon_metrics.get('target_positive_rate', 0) * 100:.1f}%")
+                summary_cols[1].metric("PR-AUC", "н/д" if horizon_metrics.get("mean_pr_auc") is None else f"{horizon_metrics['mean_pr_auc']:.3f}")
+                summary_cols[2].metric("Brier score", "н/д" if horizon_metrics.get("mean_brier_score") is None else f"{horizon_metrics['mean_brier_score']:.3f}")
+                if not folds.empty:
+                    st.markdown("Walk-forward folds")
+                    st.dataframe(folds, width="stretch", hide_index=True)
+
+    with tabs[2]:
         show_missing_warning(
             filtered_df,
             ["vix", "usd_volatility", "imoex_volatility", "imoex_drawdown", "imoex_zscore", "ofz_spread_10_2"],
@@ -539,7 +755,7 @@ def main() -> None:
                 f"Нет доступных данных для {fmt_label(column)}.",
             )
 
-    with tabs[2]:
+    with tabs[3]:
         st.markdown("Ключевая ставка и инфляция помогают оценить жесткость денежно-кредитной политики, а реальная ключевая ставка показывает ее реальную жесткость.")
         show_chart_or_info(
             line_chart(filtered_df, ["key_rate", "inflation", "real_key_rate"], "Ставка, инфляция и реальная ключевая ставка", y_title="Проценты"),
@@ -591,7 +807,7 @@ def main() -> None:
         else:
             st.info("Для среза кривой доходности нужны колонки ОФЗ 1 год, 2 года, 5 лет и 10 лет.")
 
-    with tabs[3]:
+    with tabs[4]:
         st.markdown("Тепловая карта показывает общую взаимосвязь признаков за выбранный период.")
         corr_options = st.multiselect(
             "Признаки для корреляции",
@@ -659,7 +875,7 @@ def main() -> None:
             )
             st.plotly_chart(fig, width="stretch", theme=None)
 
-    with tabs[4]:
+    with tabs[5]:
         st.markdown("Проверка качества данных помогает быстро понять покрытие, пропуски и доступность признаков.")
         shape_col, date_col = st.columns(2)
         shape_col.metric("Строки x колонки", f"{filtered_df.shape[0]} x {filtered_df.shape[1]}")
