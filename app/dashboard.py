@@ -496,8 +496,13 @@ def inject_styles() -> None:
     st.markdown(
         """
         <style>
-        [data-testid="stToolbar"] {
+        [data-testid="stAppDeployButton"],
+        [data-testid="stMainMenuButton"] {
             display: none;
+        }
+        [data-testid="stSidebarCollapseButton"],
+        [data-testid="stSidebarCollapseButton"] button {
+            visibility: visible !important;
         }
         .kpi-card {
             padding: 0.35rem 0 0.7rem 0;

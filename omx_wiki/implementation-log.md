@@ -71,3 +71,10 @@
 
 - Committed MVP-1.0 model and dashboard integration as `e768d23` with message `Add MVP crisis prediction model`.
 - Pushed branch `feature/crisis-model-mvp` to `origin`.
+
+## [2026-06-05] fix | sidebar restore control
+
+- Investigated a Streamlit UI issue where the sidebar could not be restored after being collapsed.
+- Root cause: custom dashboard CSS hid the full Streamlit toolbar via `[data-testid="stToolbar"] { display: none; }`.
+- Changed the CSS to hide only non-essential Streamlit header buttons (`Deploy` and main menu), leaving toolbar/sidebar controls available.
+- Made the sidebar collapse control permanently visible because Streamlit renders it as hover-only by default.
