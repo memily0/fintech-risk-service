@@ -78,3 +78,25 @@
 - Root cause: custom dashboard CSS hid the full Streamlit toolbar via `[data-testid="stToolbar"] { display: none; }`.
 - Changed the CSS to hide only non-essential Streamlit header buttons (`Deploy` and main menu), leaving toolbar/sidebar controls available.
 - Made the sidebar collapse control permanently visible because Streamlit renders it as hover-only by default.
+
+## [2026-06-08] data | historical dataset extension
+
+- Changed the default dataset start date from `2014-01-01` to `2003-01-01`.
+- Reworked the CBR monetary policy rate loader:
+  - uses the official CBR monetary policy rates table;
+  - uses `Key rate` when available;
+  - falls back to `Refinancing Rate` before key-rate history starts.
+- Rebuilt `data/final_dataset.csv` for `2003-01-01` through `2026-06-06`.
+- Rebuilt model predictions, metrics, and sklearn artifacts on the extended dataset.
+- Source coverage after rebuild:
+  - USD/RUB and EUR/RUB: from `2003-01-01`;
+  - gold, VIX, S&P500: from `2003-01-02`;
+  - IMOEX: from `2003-01-04`;
+  - Brent: from `2007-07-30`;
+  - OFZ curves: from `2014-01-06` using existing local MOEX files;
+  - inflation: from `2014-02-01` using the existing local monthly file.
+- No proxy was added for OFZ or inflation before their available source history.
+- Latest model metrics after rebuild:
+  - 7d latest probability `0.074`, regime `Normal`, mean ROC-AUC `0.881`;
+  - 30d latest probability `0.231`, regime `Watch`, mean ROC-AUC `0.784`;
+  - 90d latest probability `0.076`, regime `Normal`, mean ROC-AUC `0.642`.

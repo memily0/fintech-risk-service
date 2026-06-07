@@ -18,8 +18,8 @@ import pandas as pd
 import yfinance as yf
 
 
-START_DATE = pd.Timestamp("2014-01-01")
-CBR_LOOKBACK_DATE = pd.Timestamp("2013-01-01")
+START_DATE = pd.Timestamp("2003-01-01")
+CBR_LOOKBACK_DATE = pd.Timestamp("2003-01-01")
 FFILL_LIMIT_DAYS = 14
 STALE_SOURCE_DAYS = 14
 
@@ -105,6 +105,13 @@ def parse_float(value: object) -> float:
     if text in {"", "None", "nan", "NaN", "null"}:
         return np.nan
     return float(text)
+
+
+def parse_optional_rate(value: object) -> float:
+    text = str(value).strip()
+    if text in {"", "—", "-", "None", "nan", "NaN", "null"}:
+        return np.nan
+    return parse_float(text)
 
 
 def fetch_url_text(url: str, params: dict[str, object] | None = None, encoding: str = "utf-8") -> str:
@@ -203,9 +210,9 @@ def fetch_cbr_currency_series(
 
 
 def fetch_cbr_key_rate(start_date: pd.Timestamp, end_date: pd.Timestamp) -> pd.DataFrame:
-    print("[download] CBR key rate")
+    print("[download] CBR monetary policy rate")
     text = fetch_url_text(
-        "https://www.cbr.ru/hd_base/KeyRate/",
+        "https://www.cbr.ru/eng/hd_base/procstav/ir_chg_mpo/full/",
         params={
             "UniDbQuery.Posted": "True",
             "UniDbQuery.From": cbr_dot_date(start_date),
@@ -217,20 +224,30 @@ def fetch_cbr_key_rate(start_date: pd.Timestamp, end_date: pd.Timestamp) -> pd.D
     rows: list[dict[str, object]] = []
     for row_html in re.findall(r"<tr[^>]*>(.*?)</tr>", text, flags=re.DOTALL | re.IGNORECASE):
         cells = re.findall(r"<td[^>]*>(.*?)</td>", row_html, flags=re.DOTALL | re.IGNORECASE)
-        if len(cells) < 2:
+        if len(cells) < 3:
             continue
-        date_text = html.unescape(re.sub(r"<[^>]+>", "", cells[0])).strip()
-        rate_text = html.unescape(re.sub(r"<[^>]+>", "", cells[1])).strip()
+        values = [html.unescape(re.sub(r"<[^>]+>", " ", cell)).strip() for cell in cells]
+        values = [" ".join(value.split()) for value in values]
+        date_text = values[0]
+        key_rate = parse_optional_rate(values[1])
+        refinancing_rate = parse_optional_rate(values[-1])
+        policy_rate = key_rate if pd.notna(key_rate) else refinancing_rate
+        if pd.isna(policy_rate):
+            continue
         rows.append(
             {
                 "date": pd.to_datetime(date_text, format="%d.%m.%Y", errors="coerce"),
-                "key_rate": parse_float(rate_text),
+                "key_rate": policy_rate,
+                "policy_rate_source": "key_rate" if pd.notna(key_rate) else "refinancing_rate",
             }
         )
 
     if not rows:
-        raise RuntimeError("CBR key rate table was not found or parsed as empty")
-    return standardize_series(pd.DataFrame(rows), "key_rate")
+        raise RuntimeError("CBR monetary policy rate table was not found or parsed as empty")
+    raw = pd.DataFrame(rows)
+    print("[source] key_rate fallback counts:")
+    print(raw["policy_rate_source"].value_counts(dropna=False).to_string())
+    return standardize_series(raw, "key_rate")
 
 
 def fetch_yfinance_series(
@@ -646,9 +663,9 @@ def print_final_checks(df: pd.DataFrame) -> None:
 
 def print_manual_download_instructions() -> None:
     print("\nManual files needed if internet is unavailable:")
-    print("- CBR XML_dynamic USD/RUB: VAL_NM_RQ=R01235, date_req1=01/01/2014, date_req2=<today>")
-    print("- CBR XML_dynamic EUR/RUB: VAL_NM_RQ=R01239, date_req1=01/01/2014, date_req2=<today>")
-    print("- CBR key rate HTML table: /hd_base/KeyRate/ from 01.01.2013 to <today>")
+    print("- CBR XML_dynamic USD/RUB: VAL_NM_RQ=R01235, date_req1=01/01/2003, date_req2=<today>")
+    print("- CBR XML_dynamic EUR/RUB: VAL_NM_RQ=R01239, date_req1=01/01/2003, date_req2=<today>")
+    print("- CBR monetary policy rate HTML table: /eng/hd_base/procstav/ir_chg_mpo/full/ from 01.01.2003 to <today>")
     print("- MOEX ISS IMOEX history JSON with TRADEDATE,CLOSE and pagination via start")
     print("- Yahoo Finance daily Close for GC=F, BZ=F, ^VIX, ^GSPC")
     print("- Existing local files: data/inflation_key_rate.csv and data/moex/ofz_*.csv")
