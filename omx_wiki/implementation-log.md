@@ -100,3 +100,56 @@
   - 7d latest probability `0.074`, regime `Normal`, mean ROC-AUC `0.881`;
   - 30d latest probability `0.231`, regime `Watch`, mean ROC-AUC `0.784`;
   - 90d latest probability `0.076`, regime `Normal`, mean ROC-AUC `0.642`.
+
+## [2026-06-08] data | Brent and inflation source hardening
+
+- Replaced Brent source:
+  - previous source was Yahoo Finance futures ticker `BZ=F`, available only from `2007-07-30` in the current pipeline;
+  - new source is official EIA Europe Brent Spot Price FOB (`RBRTE`) XLS export;
+  - current MVP dataset now has Brent from `2003-01-02`.
+- Replaced inflation source:
+  - previous source was local `data/inflation_key_rate.csv`, available from `2014-02-01` after publication-lag shift;
+  - new source is Rosstat CPI package `rsdocs_1031000110063` exposed through the NSEDC repository;
+  - the loader selects the newest `csv.gz` resource, validates exactly two monthly rows per period, uses the second row as CPI YoY index, and stores `inflation = CPI YoY index - 100`;
+  - the monthly value is shifted to the first day of the next month, preserving the existing MVP publication-lag convention.
+- Checked MOEX ZCYC/OFZ availability:
+  - official MOEX ISS ZCYC endpoint reports history from `2014-01-06`;
+  - OFZ was not extended to 2003 because that would require proxying or manual reconstruction beyond the official endpoint range.
+- Added `xlrd` to dependencies to parse the official EIA `.xls` file.
+- Rebuilt `data/final_dataset.csv` for `2003-01-01` through `2026-06-07`.
+- Rebuilt model predictions, metrics, and sklearn artifacts on the updated dataset.
+- Source coverage after rebuild:
+  - Brent: from `2003-01-02`, `0.01%` missing before fill;
+  - inflation: full daily coverage from `2003-01-01`, `0.00%` missing after monthly release shift;
+  - OFZ curves: still from `2014-01-06`, `47.30%` missing before 2014 and after stale local source cutoff.
+- Validation warnings remaining:
+  - key rate source is stale by `41` days;
+  - inflation source is stale by `67` days because latest Rosstat/NSEDC package observation is available from `2026-04-01`;
+  - OFZ local source is stale by `30` days.
+- Latest model metrics after rebuild:
+  - 7d latest probability `0.048`, regime `Normal`, mean ROC-AUC `0.850`;
+  - 30d latest probability `0.178`, regime `Normal`, mean ROC-AUC `0.735`;
+  - 90d latest probability `0.249`, regime `Watch`, mean ROC-AUC `0.548`.
+
+## [2026-06-08] data | CBR ZCYC OFZ history
+
+- Revisited the OFZ history limitation:
+  - MOEX ISS `zcyc.json` shows history from `2014-01-06`;
+  - Bank of Russia publishes the zero-coupon government bond yield curve from `04.01.2003` on `/hd_base/zcyc_params/`.
+- Added a CBR ZCYC loader to `scripts/build_final_dataset.py`:
+  - requests the CBR table by calendar-year chunks because the full 2003-2026 range is not reliably returned in one request;
+  - parses maturities `1`, `2`, `5`, and `10` years into `ofz_1y`, `ofz_2y`, `ofz_5y`, and `ofz_10y`;
+  - keeps local MOEX OFZ files as an overlap check instead of the primary source.
+- CBR/MOEX overlap check on `2014-2026`:
+  - `ofz_1y`: max absolute difference `0.0100` percentage points;
+  - `ofz_2y`: max absolute difference `0.0100` percentage points;
+  - `ofz_5y`: max absolute difference `0.0300` percentage points;
+  - `ofz_10y`: max absolute difference `0.0300` percentage points.
+- Rebuilt `data/final_dataset.csv` for `2003-01-01` through `2026-06-07`.
+- OFZ missing values after merge fell from `47.30%` to `0.14%` per OFZ column.
+- Added `omx_wiki/dataset-formation.md` with the full dataset formation description.
+- Rebuilt model predictions, metrics, and sklearn artifacts on the updated dataset.
+- Latest model metrics after rebuild:
+  - 7d latest probability `0.010`, regime `Normal`, mean ROC-AUC `0.842`;
+  - 30d latest probability `0.092`, regime `Normal`, mean ROC-AUC `0.747`;
+  - 90d latest probability `0.251`, regime `Watch`, mean ROC-AUC `0.618`.

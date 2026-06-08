@@ -11,6 +11,7 @@ import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
+from io import BytesIO
 from pathlib import Path
 
 import numpy as np
@@ -52,10 +53,15 @@ REQUIRED_NONEMPTY_COLUMNS = [column for column in FINAL_COLUMNS if column != "da
 
 YFINANCE_TICKERS = {
     "gold": "GC=F",
-    "brent": "BZ=F",
     "vix": "^VIX",
     "sp500": "^GSPC",
 }
+
+EIA_BRENT_XLS_URL = "https://www.eia.gov/dnav/pet/hist_xls/RBRTEd.xls"
+ROSSTAT_CPI_PACKAGE_ID = "rsdocs_1031000110063"
+NSEDC_PACKAGE_SHOW_URL = "https://repository.nsedc.ru/api/3/action/package_show"
+CBR_ZCYC_URL = "https://cbr.ru/hd_base/zcyc_params/"
+CBR_ZCYC_START_DATE = pd.Timestamp("2003-01-04")
 
 CBR_CURRENCIES = {
     "usd_rub": "R01235",
@@ -67,6 +73,13 @@ OFZ_FILES = {
     "ofz_2y": ("data/moex/ofz_2y.csv", "period_2.0"),
     "ofz_5y": ("data/moex/ofz_5y.csv", "period_5.0"),
     "ofz_10y": ("data/moex/ofz_10y.csv", "period_10.0"),
+}
+
+CBR_ZCYC_VALUE_INDEXES = {
+    "ofz_1y": 4,
+    "ofz_2y": 5,
+    "ofz_5y": 7,
+    "ofz_10y": 9,
 }
 
 
@@ -114,7 +127,16 @@ def parse_optional_rate(value: object) -> float:
     return parse_float(text)
 
 
+def clean_html_cell(value: str) -> str:
+    text = html.unescape(re.sub(r"<[^>]+>", " ", value)).strip()
+    return " ".join(text.split())
+
+
 def fetch_url_text(url: str, params: dict[str, object] | None = None, encoding: str = "utf-8") -> str:
+    return fetch_url_bytes(url, params=params).decode(encoding, errors="replace")
+
+
+def fetch_url_bytes(url: str, params: dict[str, object] | None = None) -> bytes:
     if params:
         url = f"{url}?{urllib.parse.urlencode(params)}"
     request = urllib.request.Request(
@@ -125,7 +147,7 @@ def fetch_url_text(url: str, params: dict[str, object] | None = None, encoding: 
         },
     )
     with urllib.request.urlopen(request, timeout=90) as response:
-        return response.read().decode(encoding, errors="replace")
+        return response.read()
 
 
 def fetch_url_json(url: str, params: dict[str, object] | None = None) -> dict:
@@ -250,6 +272,89 @@ def fetch_cbr_key_rate(start_date: pd.Timestamp, end_date: pd.Timestamp) -> pd.D
     return standardize_series(raw, "key_rate")
 
 
+def iter_calendar_year_ranges(start_date: pd.Timestamp, end_date: pd.Timestamp) -> list[tuple[pd.Timestamp, pd.Timestamp]]:
+    ranges: list[tuple[pd.Timestamp, pd.Timestamp]] = []
+    current = pd.Timestamp(start_date).normalize()
+    final = pd.Timestamp(end_date).normalize()
+    while current <= final:
+        year_end = pd.Timestamp(year=current.year, month=12, day=31)
+        chunk_end = min(year_end, final)
+        ranges.append((current, chunk_end))
+        current = chunk_end + pd.Timedelta(days=1)
+    return ranges
+
+
+def parse_cbr_zcyc_rows(text: str) -> list[dict[str, object]]:
+    rows: list[dict[str, object]] = []
+    for row_html in re.findall(r"<tr[^>]*>(.*?)</tr>", text, flags=re.DOTALL | re.IGNORECASE):
+        cells = re.findall(r"<td[^>]*>(.*?)</td>", row_html, flags=re.DOTALL | re.IGNORECASE)
+        values = [clean_html_cell(cell) for cell in cells]
+        if len(values) != 13 or not re.match(r"^\d{2}\.\d{2}\.\d{4}$", values[0]):
+            continue
+
+        row: dict[str, object] = {
+            "date": pd.to_datetime(values[0], format="%d.%m.%Y", errors="coerce"),
+        }
+        for column, value_index in CBR_ZCYC_VALUE_INDEXES.items():
+            row[column] = parse_optional_rate(values[value_index])
+        rows.append(row)
+    return rows
+
+
+def fetch_cbr_zcyc_ofz(start_date: pd.Timestamp, end_date: pd.Timestamp) -> pd.DataFrame:
+    print("[download] CBR OFZ zero-coupon yield curve")
+    requested_start = max(pd.Timestamp(start_date).normalize(), CBR_ZCYC_START_DATE)
+    requested_end = pd.Timestamp(end_date).normalize()
+    all_rows: list[dict[str, object]] = []
+
+    for chunk_start, chunk_end in iter_calendar_year_ranges(requested_start, requested_end):
+        text = fetch_url_text(
+            CBR_ZCYC_URL,
+            params={
+                "UniDbQuery.Posted": "True",
+                "UniDbQuery.From": cbr_dot_date(chunk_start),
+                "UniDbQuery.To": cbr_dot_date(chunk_end),
+            },
+            encoding="utf-8",
+        )
+        chunk_rows = parse_cbr_zcyc_rows(text)
+        print(f"  CBR ZCYC {chunk_start.year}: rows={len(chunk_rows)}")
+        all_rows.extend(chunk_rows)
+        time.sleep(0.05)
+
+    if not all_rows:
+        raise RuntimeError("CBR ZCYC table was not found or parsed as empty")
+
+    raw = pd.DataFrame(all_rows)
+    raw["date"] = pd.to_datetime(raw["date"], errors="coerce").dt.normalize()
+    for column in CBR_ZCYC_VALUE_INDEXES:
+        raw[column] = pd.to_numeric(raw[column], errors="coerce")
+    raw = raw.dropna(subset=["date"]).sort_values("date")
+    raw = raw.groupby("date", as_index=False).last()
+    return raw[(raw["date"] >= requested_start) & (raw["date"] <= requested_end)].copy()
+
+
+def compare_ofz_sources(cbr_ofz: pd.DataFrame, local_ofz_frames: dict[str, pd.DataFrame]) -> None:
+    print("\n[compare] CBR ZCYC vs local MOEX OFZ files")
+    for column, local_df in local_ofz_frames.items():
+        cbr_df = standardize_series(cbr_ofz[["date", column]], column).rename(columns={column: "cbr"})
+        local = standardize_series(local_df, column).rename(columns={column: "local"})
+        comparison = cbr_df.merge(local, on="date", how="inner").dropna(subset=["cbr", "local"])
+        if comparison.empty:
+            print(f"  {column}: no overlap")
+            continue
+
+        diff = comparison["cbr"] - comparison["local"]
+        mean_abs_diff = float(diff.abs().mean())
+        max_abs_diff = float(diff.abs().max())
+        print(
+            f"  {column}: overlap_rows={len(comparison)}, "
+            f"mean_abs_diff={mean_abs_diff:.4f} pp, max_abs_diff={max_abs_diff:.4f} pp"
+        )
+        if mean_abs_diff > 0.25 or max_abs_diff > 1.0:
+            print(f"  WARNING {column}: CBR/MOEX overlap difference is unusually high")
+
+
 def fetch_yfinance_series(
     ticker: str,
     column: str,
@@ -309,6 +414,24 @@ def fetch_yfinance_series(
     return standardize_series(df.reset_index(), column)
 
 
+def fetch_eia_brent(start_date: pd.Timestamp, end_date: pd.Timestamp) -> pd.DataFrame:
+    print("[download] EIA Brent spot price (RBRTE)")
+    raw = pd.read_excel(BytesIO(fetch_url_bytes(EIA_BRENT_XLS_URL)), sheet_name="Data 1", header=2)
+    if "Date" not in raw.columns or len(raw.columns) < 2:
+        raise RuntimeError("EIA Brent XLS format is not recognized")
+
+    price_columns = [column for column in raw.columns if column != "Date"]
+    price_column = price_columns[0]
+    df = pd.DataFrame(
+        {
+            "date": pd.to_datetime(raw["Date"], errors="coerce"),
+            "brent": pd.to_numeric(raw[price_column], errors="coerce"),
+        }
+    )
+    df = standardize_series(df, "brent")
+    return df[(df["date"] >= start_date) & (df["date"] <= end_date)].copy()
+
+
 def fetch_moex_imoex(start_date: pd.Timestamp, end_date: pd.Timestamp) -> pd.DataFrame:
     print("[download] MOEX ISS IMOEX")
     base_url = "https://iss.moex.com/iss/history/engines/stock/markets/index/securities/IMOEX.json"
@@ -352,6 +475,61 @@ def fetch_moex_imoex(start_date: pd.Timestamp, end_date: pd.Timestamp) -> pd.Dat
     raw = pd.concat(all_parts, ignore_index=True)
     df = raw.rename(columns={"TRADEDATE": "date", "CLOSE": "imoex"})
     return standardize_series(df, "imoex")
+
+
+def latest_nsedc_csv_gz_resource(package_id: str) -> tuple[str, str]:
+    data = fetch_url_json(NSEDC_PACKAGE_SHOW_URL, params={"id": package_id})
+    if not data.get("success"):
+        raise RuntimeError(f"NSEDC package lookup failed for {package_id}")
+
+    pattern = re.compile(rf"^{re.escape(package_id)}_ind_(\d+)\.csv\.gz$")
+    candidates: list[tuple[int, str, str]] = []
+    for resource in data.get("result", {}).get("resources", []):
+        name = str(resource.get("name", ""))
+        url = str(resource.get("url", ""))
+        match = pattern.match(name)
+        if match and url:
+            candidates.append((int(match.group(1)), name, url))
+
+    if not candidates:
+        raise RuntimeError(f"NSEDC package {package_id} has no matching csv.gz resource")
+
+    _, name, url = max(candidates, key=lambda item: item[0])
+    return name, url
+
+
+def fetch_rosstat_cpi_inflation() -> pd.DataFrame:
+    resource_name, resource_url = latest_nsedc_csv_gz_resource(ROSSTAT_CPI_PACKAGE_ID)
+    print(f"[download] Rosstat CPI via NSEDC: {resource_name}")
+    raw = pd.read_csv(BytesIO(fetch_url_bytes(resource_url)), compression="gzip")
+    required_columns = {"date", "obs", "frequency"}
+    if not required_columns.issubset(raw.columns):
+        raise RuntimeError(f"{resource_name} must contain date, obs, and frequency columns")
+
+    monthly = raw[raw["frequency"].astype(str).str.lower().eq("monthly")].copy()
+    monthly["source_order"] = np.arange(len(monthly))
+    monthly["date"] = pd.to_datetime(monthly["date"], errors="coerce")
+    monthly["obs"] = pd.to_numeric(monthly["obs"], errors="coerce")
+    monthly = monthly.dropna(subset=["date", "obs"]).sort_values(["date", "source_order"], kind="stable")
+
+    monthly_counts = monthly.groupby("date").size()
+    if monthly_counts.empty or not monthly_counts.eq(2).all():
+        raise RuntimeError(
+            f"{resource_name} monthly CPI must have exactly two rows per month; "
+            "refusing to infer YoY inflation from an ambiguous source"
+        )
+
+    monthly["occurrence"] = monthly.groupby("date").cumcount()
+    yoy_index = monthly[monthly["occurrence"].eq(1)].copy()
+    df = pd.DataFrame(
+        {
+            # The source has period-end CPI observations but no exact historical release calendar.
+            # Keep the existing MVP convention: make monthly inflation visible from next month start.
+            "date": yoy_index["date"] + pd.offsets.MonthBegin(1),
+            "inflation": yoy_index["obs"] - 100.0,
+        }
+    )
+    return standardize_series(df, "inflation")
 
 
 def load_local_inflation(path: Path) -> pd.DataFrame:
@@ -571,13 +749,26 @@ def run_connectivity_checks(end_date: pd.Timestamp) -> None:
     if unique_count <= 5:
         raise RuntimeError("MOEX IMOEX connectivity check suggests a stuck series")
 
-    print("[connectivity] yfinance for gold/brent/vix/sp500")
+    print("[connectivity] yfinance for gold/vix/sp500")
     yf_start = max(START_DATE, end_date - pd.Timedelta(days=21))
     for column, ticker in YFINANCE_TICKERS.items():
         sample = fetch_yfinance_series(ticker, column, yf_start, end_date)
         min_date = sample["date"].min().date() if not sample.empty else "n/a"
         max_date = sample["date"].max().date() if not sample.empty else "n/a"
         print(f"  {column} ({ticker}): rows={len(sample)}, min_date={min_date}, max_date={max_date}")
+
+    print("[connectivity] EIA Brent spot price")
+    brent = fetch_eia_brent(yf_start, end_date)
+    min_date = brent["date"].min().date() if not brent.empty else "n/a"
+    max_date = brent["date"].max().date() if not brent.empty else "n/a"
+    print(f"  brent (RBRTE): rows={len(brent)}, min_date={min_date}, max_date={max_date}")
+
+    print("[connectivity] CBR OFZ zero-coupon yield curve")
+    zcyc_start = max(START_DATE, end_date - pd.Timedelta(days=21))
+    zcyc = fetch_cbr_zcyc_ofz(zcyc_start, end_date)
+    min_date = zcyc["date"].min().date() if not zcyc.empty else "n/a"
+    max_date = zcyc["date"].max().date() if not zcyc.empty else "n/a"
+    print(f"  CBR ZCYC: rows={len(zcyc)}, min_date={min_date}, max_date={max_date}")
 
 
 def build_dataset(project_dir: Path, end_date: pd.Timestamp) -> tuple[pd.DataFrame, dict[str, SourceStatus]]:
@@ -593,7 +784,7 @@ def build_dataset(project_dir: Path, end_date: pd.Timestamp) -> tuple[pd.DataFra
     source_frames["key_rate"] = key_rate
     source_statuses["key_rate"] = source_status("key_rate", key_rate)
 
-    inflation = load_local_inflation(project_dir / "data" / "inflation_key_rate.csv")
+    inflation = fetch_rosstat_cpi_inflation()
     source_frames["inflation"] = inflation
     source_statuses["inflation"] = source_status("inflation", inflation)
 
@@ -602,12 +793,22 @@ def build_dataset(project_dir: Path, end_date: pd.Timestamp) -> tuple[pd.DataFra
         source_frames[column] = df
         source_statuses[column] = source_status(column, df)
 
+    brent = fetch_eia_brent(START_DATE, end_date)
+    source_frames["brent"] = brent
+    source_statuses["brent"] = source_status("brent", brent)
+
     imoex = fetch_moex_imoex(START_DATE, end_date)
     source_frames["imoex"] = imoex
     source_statuses["imoex"] = source_status("imoex", imoex)
 
+    cbr_ofz = fetch_cbr_zcyc_ofz(START_DATE, end_date)
+    local_ofz_frames: dict[str, pd.DataFrame] = {}
     for column, (relative_path, period_column) in OFZ_FILES.items():
-        df = load_local_ofz(project_dir / relative_path, period_column, column)
+        local_ofz_frames[column] = load_local_ofz(project_dir / relative_path, period_column, column)
+
+    compare_ofz_sources(cbr_ofz, local_ofz_frames)
+    for column in OFZ_FILES:
+        df = standardize_series(cbr_ofz[["date", column]], column)
         source_frames[column] = df
         source_statuses[column] = source_status(column, df)
 
@@ -667,8 +868,11 @@ def print_manual_download_instructions() -> None:
     print("- CBR XML_dynamic EUR/RUB: VAL_NM_RQ=R01239, date_req1=01/01/2003, date_req2=<today>")
     print("- CBR monetary policy rate HTML table: /eng/hd_base/procstav/ir_chg_mpo/full/ from 01.01.2003 to <today>")
     print("- MOEX ISS IMOEX history JSON with TRADEDATE,CLOSE and pagination via start")
-    print("- Yahoo Finance daily Close for GC=F, BZ=F, ^VIX, ^GSPC")
-    print("- Existing local files: data/inflation_key_rate.csv and data/moex/ofz_*.csv")
+    print("- Yahoo Finance daily Close for GC=F, ^VIX, ^GSPC")
+    print("- EIA Brent daily spot XLS: https://www.eia.gov/dnav/pet/hist_xls/RBRTEd.xls")
+    print("- Rosstat CPI package via NSEDC API: rsdocs_1031000110063")
+    print("- CBR OFZ zero-coupon yield curve table: /hd_base/zcyc_params/")
+    print("- Existing local OFZ files for overlap checks: data/moex/ofz_*.csv")
 
 
 def parse_args() -> argparse.Namespace:

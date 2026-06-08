@@ -110,10 +110,10 @@
     {
       "horizon_days": 7,
       "artifact_path": "models/artifacts/crisis_logreg_7d.joblib",
-      "target_positive_rate": 0.14021751841889837,
-      "training_observations": 8551,
-      "latest_date": "2026-06-06",
-      "latest_probability": 0.07364315203463351,
+      "target_positive_rate": 0.13341908325537885,
+      "training_observations": 8552,
+      "latest_date": "2026-06-07",
+      "latest_probability": 0.009610883186284983,
       "latest_regime": "Normal",
       "folds": [
         {
@@ -122,9 +122,9 @@
           "test_end": "2019-12-31",
           "observations": 730,
           "positive_rate": 0.049315068493150684,
-          "roc_auc": 0.9778258085174512,
-          "pr_auc": 0.8487766563343574,
-          "brier_score": 0.026346057204118884
+          "roc_auc": 0.943523855267371,
+          "pr_auc": 0.8147640977749493,
+          "brier_score": 0.046885506921644365
         },
         {
           "train_end": "2019-12-31",
@@ -132,9 +132,9 @@
           "test_end": "2021-12-31",
           "observations": 731,
           "positive_rate": 0.09986320109439124,
-          "roc_auc": 0.9846567015031019,
-          "pr_auc": 0.9416646937066064,
-          "brier_score": 0.024819815642783665
+          "roc_auc": 0.9845526085689302,
+          "pr_auc": 0.9423530170026554,
+          "brier_score": 0.03266722141117226
         },
         {
           "train_end": "2021-12-31",
@@ -142,86 +142,32 @@
           "test_end": "2023-12-31",
           "observations": 730,
           "positive_rate": 0.2410958904109589,
-          "roc_auc": 0.6759722678043978,
-          "pr_auc": 0.585768824277497,
-          "brier_score": 0.15665339189408556
+          "roc_auc": 0.52817320315064,
+          "pr_auc": 0.5641059383688732,
+          "brier_score": 0.15208814514183625
         },
         {
           "train_end": "2023-12-31",
           "test_start": "2024-01-01",
-          "test_end": "2026-06-06",
-          "observations": 881,
-          "positive_rate": 0.12258796821793416,
-          "roc_auc": 0.8845886636960376,
-          "pr_auc": 0.6047359881964386,
-          "brier_score": 0.1339969285487176
+          "test_end": "2026-06-07",
+          "observations": 882,
+          "positive_rate": 0.12244897959183673,
+          "roc_auc": 0.9100153124700928,
+          "pr_auc": 0.617618091705127,
+          "brier_score": 0.17323886053763798
         }
       ],
-      "mean_roc_auc": 0.880760860380247,
-      "mean_pr_auc": 0.7452365406287248,
-      "mean_brier_score": 0.08545404832242642
+      "mean_roc_auc": 0.8415662448642586,
+      "mean_pr_auc": 0.7347102862129014,
+      "mean_brier_score": 0.1012199335030727
     },
     {
       "horizon_days": 30,
       "artifact_path": "models/artifacts/crisis_logreg_30d.joblib",
-      "target_positive_rate": 0.1950046904315197,
-      "training_observations": 8528,
-      "latest_date": "2026-06-06",
-      "latest_probability": 0.23128725059205799,
-      "latest_regime": "Watch",
-      "folds": [
-        {
-          "train_end": "2017-12-31",
-          "test_start": "2018-01-01",
-          "test_end": "2019-12-31",
-          "observations": 730,
-          "positive_rate": 0.08082191780821918,
-          "roc_auc": 0.8573846270428654,
-          "pr_auc": 0.5624649563492568,
-          "brier_score": 0.09879586221109223
-        },
-        {
-          "train_end": "2019-12-31",
-          "test_start": "2020-01-01",
-          "test_end": "2021-12-31",
-          "observations": 731,
-          "positive_rate": 0.14500683994528044,
-          "roc_auc": 0.8958792452830189,
-          "pr_auc": 0.7622210531979928,
-          "brier_score": 0.06206154288462498
-        },
-        {
-          "train_end": "2021-12-31",
-          "test_start": "2022-01-01",
-          "test_end": "2023-12-31",
-          "observations": 730,
-          "positive_rate": 0.26575342465753427,
-          "roc_auc": 0.550594322203416,
-          "pr_auc": 0.5079573402942611,
-          "brier_score": 0.19775745576044781
-        },
-        {
-          "train_end": "2023-12-31",
-          "test_start": "2024-01-01",
-          "test_end": "2026-06-06",
-          "observations": 858,
-          "positive_rate": 0.24825174825174826,
-          "roc_auc": 0.8337955380863995,
-          "pr_auc": 0.6844779790239912,
-          "brier_score": 0.17228396012497194
-        }
-      ],
-      "mean_roc_auc": 0.784413433153925,
-      "mean_pr_auc": 0.6292803322163754,
-      "mean_brier_score": 0.13272470524528424
-    },
-    {
-      "horizon_days": 90,
-      "artifact_path": "models/artifacts/crisis_logreg_90d.joblib",
-      "target_positive_rate": 0.3117619272555503,
-      "training_observations": 8468,
-      "latest_date": "2026-06-06",
-      "latest_probability": 0.07621990512054452,
+      "target_positive_rate": 0.19146441552350804,
+      "training_observations": 8529,
+      "latest_date": "2026-06-07",
+      "latest_probability": 0.09244165057846793,
       "latest_regime": "Normal",
       "folds": [
         {
@@ -229,20 +175,20 @@
           "test_start": "2018-01-01",
           "test_end": "2019-12-31",
           "observations": 730,
-          "positive_rate": 0.21095890410958903,
-          "roc_auc": 0.43815386002886003,
-          "pr_auc": 0.307355252019506,
-          "brier_score": 0.3085207533210957
+          "positive_rate": 0.08082191780821918,
+          "roc_auc": 0.819646871605749,
+          "pr_auc": 0.41907545333975516,
+          "brier_score": 0.15222355071974944
         },
         {
           "train_end": "2019-12-31",
           "test_start": "2020-01-01",
           "test_end": "2021-12-31",
           "observations": 731,
-          "positive_rate": 0.2612859097127223,
-          "roc_auc": 0.6347779716889664,
-          "pr_auc": 0.4914146718908566,
-          "brier_score": 0.2253127392115728
+          "positive_rate": 0.14500683994528044,
+          "roc_auc": 0.8359245283018868,
+          "pr_auc": 0.6937667074416566,
+          "brier_score": 0.12799996382434412
         },
         {
           "train_end": "2021-12-31",
@@ -250,24 +196,78 @@
           "test_end": "2023-12-31",
           "observations": 730,
           "positive_rate": 0.26575342465753427,
-          "roc_auc": 0.666025542391137,
-          "pr_auc": 0.5112770922206684,
-          "brier_score": 0.22984306631088144
+          "roc_auc": 0.46258078165871674,
+          "pr_auc": 0.47958125697920795,
+          "brier_score": 0.2562583350439618
         },
         {
           "train_end": "2023-12-31",
           "test_start": "2024-01-01",
-          "test_end": "2026-06-06",
-          "observations": 798,
-          "positive_rate": 0.43859649122807015,
-          "roc_auc": 0.8280038265306122,
-          "pr_auc": 0.7853696265971674,
-          "brier_score": 0.18412640284446652
+          "test_end": "2026-06-07",
+          "observations": 859,
+          "positive_rate": 0.2479627473806752,
+          "roc_auc": 0.8702524745999215,
+          "pr_auc": 0.6582180612470149,
+          "brier_score": 0.19655088061089077
         }
       ],
-      "mean_roc_auc": 0.6417403001598939,
-      "mean_pr_auc": 0.5238541606820496,
-      "mean_brier_score": 0.2369507404220041
+      "mean_roc_auc": 0.7471011640415685,
+      "mean_pr_auc": 0.5626603697519087,
+      "mean_brier_score": 0.18325818254973653
+    },
+    {
+      "horizon_days": 90,
+      "artifact_path": "models/artifacts/crisis_logreg_90d.joblib",
+      "target_positive_rate": 0.3110166489550124,
+      "training_observations": 8469,
+      "latest_date": "2026-06-07",
+      "latest_probability": 0.2508026493389498,
+      "latest_regime": "Watch",
+      "folds": [
+        {
+          "train_end": "2017-12-31",
+          "test_start": "2018-01-01",
+          "test_end": "2019-12-31",
+          "observations": 730,
+          "positive_rate": 0.21095890410958903,
+          "roc_auc": 0.3031655844155844,
+          "pr_auc": 0.14557303389105392,
+          "brier_score": 0.34593161125307714
+        },
+        {
+          "train_end": "2019-12-31",
+          "test_start": "2020-01-01",
+          "test_end": "2021-12-31",
+          "observations": 731,
+          "positive_rate": 0.2612859097127223,
+          "roc_auc": 0.6634671320535195,
+          "pr_auc": 0.6231099053217009,
+          "brier_score": 0.3308970173055395
+        },
+        {
+          "train_end": "2021-12-31",
+          "test_start": "2022-01-01",
+          "test_end": "2023-12-31",
+          "observations": 730,
+          "positive_rate": 0.26575342465753427,
+          "roc_auc": 0.5798584397599631,
+          "pr_auc": 0.45187907059975585,
+          "brier_score": 0.33363719558762595
+        },
+        {
+          "train_end": "2023-12-31",
+          "test_start": "2024-01-01",
+          "test_end": "2026-06-07",
+          "observations": 799,
+          "positive_rate": 0.4380475594493116,
+          "roc_auc": 0.926261533566656,
+          "pr_auc": 0.8915234116540914,
+          "brier_score": 0.1656183172981297
+        }
+      ],
+      "mean_roc_auc": 0.6181881724489308,
+      "mean_pr_auc": 0.5280213553666505,
+      "mean_brier_score": 0.29402103536109314
     }
   ],
   "notes": [
