@@ -1,10 +1,34 @@
+# Python
 __pycache__/
 *.py[cod]
-.DS_Store
-.cache/
-.mpl-cache/
-.streamlit/
+*.pyo
+*.egg-info/
+
+# Virtual envs
 .venv/
 venv/
 env/
 
+# Tooling caches
+.cache/
+.mpl-cache/
+.streamlit/
+.ipynb_checkpoints/
+
+# OS / IDE
+.DS_Store
+.idea/
+.vscode/
+
+# Local secrets
+.env
+.env.local
+
+# Trained model binaries — пересоздаются через scripts/train_models.py
+model/*.pkl
+
+# Yahoo CSV — пересоздаются через yfinance в scripts/build_monthly_dataset.py
+data/yahoo/*.csv
+
+# НЕ игнорируем: data/processed/, data/moex/, data/raw/, data/inflation_key_rate.csv,
+# data/refin_index.csv — это либо собранные артефакты, либо вручную скачанные источники.
