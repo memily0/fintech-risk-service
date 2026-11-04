@@ -1,10 +1,58 @@
+# Python bytecode and tooling caches
 __pycache__/
 *.py[cod]
-.DS_Store
-.cache/
-.mpl-cache/
-.streamlit/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Virtual environments
 .venv/
 venv/
 env/
+
+# Packaging and build output
+build/
+dist/
+*.egg-info/
+
+# Editors and operating systems
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# Local application and plotting state
+.cache/
+.mpl-cache/
+.streamlit/
+
+# Secrets and local configuration
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Logs and temporary files
+*.log
+*.tmp
+*.temp
+~$*
+
+# New datasets are not committed by default. Existing tracked files under
+# data/ remain tracked; Git ignore rules never remove files from the index.
+data/raw/**
+data/processed/**
+data/external/**
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+!data/external/.gitkeep
+
+# Generated research and model artifacts
+research/results/**
+!research/results/.gitkeep
+models/artifacts/**
+!models/artifacts/.gitkeep
 
