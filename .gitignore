@@ -3,7 +3,8 @@ __pycache__/
 .DS_Store
 .cache/
 .mpl-cache/
-.streamlit/
+.streamlit/*
+!.streamlit/config.toml
 .venv/
 venv/
 env/

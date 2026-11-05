@@ -33,39 +33,13 @@ STATES = {
     'market_closed': ('info', 'Рынок закрыт по демонстрационному календарю. Свежесть проверяется по последней завершённой сессии.'),
     'incomplete_bar': ('warning', 'Дневная свеча ещё не закрыта. Оценка недоступна.'),
 }
-CSS = """
-<style>
-[data-testid="stMainBlockContainer"] {max-width: 76rem; padding-top: 3rem;}
-[data-testid="stSidebar"] {border-right: 1px solid #cbd5e1;}
-.arc-banner {
-    padding: 1.1rem 1.25rem; color: #eaf2ff; background: #14283f;
-    border: 1px solid #32516d; border-radius: .8rem; margin-bottom: .5rem;
-}
-.arc-banner strong {display: block; color: #93ddf3; letter-spacing: .06em; font-size: .82rem;}
-.arc-banner p {margin: .35rem 0 0; line-height: 1.55; overflow-wrap: anywhere;}
-.arc-card {padding: .9rem; background: #edf5fc; color: #14283f; border-radius: .65rem;
-           border: 1px solid #c2d7e9; height: 100%; overflow-wrap: anywhere;}
-.arc-card strong {display: block; font-size: 1.55rem; line-height: 1.4;}
-.arc-card span {display: block; line-height: 1.5;}
-.arc-details {display: grid; grid-template-columns: minmax(8rem, 1fr) 2fr; gap: .55rem 1rem;
-              padding: 0; margin: 0;}
-.arc-details dt {font-weight: 600;}
-.arc-details dd {margin: 0; overflow-wrap: anywhere;}
-[data-testid="stText"] {white-space: pre-wrap; overflow-wrap: anywhere;}
-[data-testid="stHeading"], [data-testid="stMarkdownContainer"], [data-testid="stCaptionContainer"] {
-    overflow-wrap: anywhere;
-}
-@media (max-width: 820px) {
-    [data-testid="stMainBlockContainer"] {padding: 3.4rem 1rem 2rem;}
-    [data-testid="stHeading"] h1 {font-size: 2rem;}
-    [data-testid="stHeading"] h2 {font-size: 1.45rem;}
-    [data-testid="stHorizontalBlock"] {flex-wrap: wrap;}
-    [data-testid="stColumn"] {flex-basis: 100% !important; min-width: 0 !important;}
-    .arc-details {grid-template-columns: 1fr;}
-    .arc-details dd {margin-bottom: .55rem;}
-}
-</style>
+BRAND = """
+<div class="arc-brand">
+    <span class="arc-brand-mark" aria-hidden="true"></span>
+    <div><strong>ArcShift</strong><span>Анализ рыночного риска</span></div>
+</div>
 """
+METRIC_NAMES = {'fx': 'Курс USD/RUB', 'equity': 'Индекс акций', 'global': 'Нефть Brent'}
 
 
 def _go(page):
@@ -94,7 +68,7 @@ def _account():
         st.button('Выйти', on_click=_set_account, args=(None,))
         return
     alias = st.selectbox('Демо-аккаунт', list(st.session_state.arc_accounts))
-    st.button('Войти в демо', on_click=_set_account, args=(alias,))
+    st.button('Войти в демо', type='primary', on_click=_set_account, args=(alias,))
     if st.button('Создать демо-аккаунт'):
         alias = f'Демо {len(st.session_state.arc_accounts) + 1}'
         st.session_state.arc_accounts[alias] = uuid4().hex
@@ -124,31 +98,46 @@ def _chart(rows, unit, key):
     fig = go.Figure(go.Scatter(
         x=[row['reference_period'] for row in current],
         y=[row['value'] for row in current],
-        mode='lines+markers', connectgaps=False, line={'color': '#16748c', 'width': 3},
-        hovertemplate='%{x|%d.%m.%Y}<br>%{y}<extra></extra>',
+        mode='lines+markers', connectgaps=False, line={'width': 2.5}, marker={'size': 7},
+        hovertemplate=f'%{{x|%d.%m.%Y}}<br>%{{y}} {unit}<extra></extra>',
     ))
-    fig.update_layout(height=280, margin={'l': 15, 'r': 15, 't': 16, 'b': 38}, yaxis_title=unit)
+    fig.update_layout(height=260, margin={'l': 12, 'r': 12, 't': 12, 'b': 28}, yaxis_title=unit)
     fig.update_xaxes(type='date', tickformat='%d.%m', dtick=86_400_000)
     st.plotly_chart(fig, width='stretch', key=key, config={'displayModeBar': False})
-    st.caption('Пропуски разрывают линию. Таблица истории доступна с клавиатуры.')
+    st.caption('Разрыв линии обозначает пропущенное наблюдение.')
 
 
 def _overview(data):
-    st.write('Ряды России и мировые факторы для контекста. Горизонт демонстрационного сигнала — 30 календарных дней.')
     if not data['series']:
         return
-    columns = st.columns(3)
-    for column, rows in zip(columns, data['series'].values()):
+    cards = []
+    for series_id, rows in data['series'].items():
         row = _current_rows(rows)[-1]
-        column.html(
-            f'<div class="arc-card"><span>{escape(row["name"])}</span>'
-            f'<strong>{row["value"]} {escape(row["unit"])}</strong>'
-            f'<span>Период {row["reference_period"]}</span></div>'
+        period = escape(row['reference_period'])
+        cards.append(
+            f'<div class="arc-card"><small>{escape(row["geography"])}</small>'
+            f'<strong>{METRIC_NAMES[series_id]}</strong>'
+            f'<div class="arc-card-value">{row["value"]} <span>{escape(row["unit"])}</span></div>'
+            f'<time datetime="{period}">Период {period}</time></div>'
         )
-    st.subheader('Условная динамика USD/RUB')
-    _chart(data['series']['fx'], SERIES['fx'][1], 'overview-chart')
-    if data['signal']:
-        st.button('Открыть предупреждения', on_click=_go, args=('Предупреждения',))
+    st.html('<div class="arc-metrics">' + ''.join(cards) + '</div>')
+
+    trend, queue = st.columns([2.2, 1], gap='medium')
+    with trend, st.container(border=True, key='arc_trend'):
+        st.subheader('Динамика USD/RUB')
+        _chart(data['series']['fx'], SERIES['fx'][1], 'overview-chart')
+        st.button('История и таблица наблюдений', on_click=_go, args=('История рядов',))
+    with queue, st.container(border=True, key='arc_queue'):
+        st.html('<span class="arc-kicker">Работа аналитика</span>')
+        st.subheader('Предупреждения')
+        signal = data['signal']
+        if signal:
+            st.write('Доступен один исторический пример для разбора.')
+            st.caption(f'Горизонт · {signal["horizon_value"]} календарных дней')
+            st.button('Открыть предупреждения', type='primary', width='stretch',
+                      on_click=_go, args=('Предупреждения',))
+        else:
+            st.write('В этом снимке нет сигнала для разбора.')
 
 
 def _history(data):
@@ -191,7 +180,7 @@ def _warnings(data, client):
         st.subheader('Предупреждение о рыночном стрессе')
         st.caption(WARNING_ID)
         st.write(f'Личный статус · {STATUSES[status]}' if client.actor else 'Для личного статуса войдите в демо.')
-        st.button('Разобрать сигнал', on_click=_go, args=('Разбор сигнала',))
+        st.button('Разобрать сигнал', type='primary', on_click=_go, args=('Разбор сигнала',))
 
 
 def _investigation(signal):
@@ -213,7 +202,7 @@ def _investigation(signal):
         f'<dt>{escape(label)}</dt><dd>{escape(value)}</dd>' for label, value in details.items()
     ) + '</dl>')
     st.info('Вклады признаков отсутствуют. Для допустимой логистической модели вклады выражаются в logit units.')
-    st.button('Перейти к личной проверке', on_click=_go, args=('Личная проверка',))
+    st.button('Перейти к личной проверке', type='primary', on_click=_go, args=('Личная проверка',))
 
 
 def _review(client, signal):
@@ -228,7 +217,7 @@ def _review(client, signal):
                               format_func=STATUSES.get, key=f'private:{client.actor}:status')
         note = st.text_area('Личная заметка', current['note'], max_chars=1500, key=f'private:{client.actor}:note',
                             help='Используйте вымышленные данные для проверки демо.')
-        if st.form_submit_button('Сохранить проверку'):
+        if st.form_submit_button('Сохранить проверку', type='primary'):
             try:
                 client.save_review(status, note)
             except ValueError as error:
@@ -250,7 +239,7 @@ def _watchlist(client):
         selected = [series_id for series_id, series in SERIES.items()
                     if st.checkbox(series[0], value=series_id in saved,
                                    key=f'private:{client.actor}:watch:{series_id}')]
-        if st.form_submit_button('Сохранить список'):
+        if st.form_submit_button('Сохранить список', type='primary'):
             client.save_watchlist(selected)
             st.success('Список сохранён.')
 
@@ -274,8 +263,11 @@ def _download_links(report):
     )
     st.iframe(
         '<html lang="ru"><style>body{margin:0;font:1rem system-ui;display:flex;flex-wrap:wrap;gap:.5rem}'
-        'a{padding:.35rem .55rem;background:#e7f0fb;color:#124475;border-radius:.3rem}'
-        'a:focus-visible{outline:2px solid #0e517d;outline-offset:-2px}</style>'
+        'a{display:inline-flex;align-items:center;min-height:2.75rem;padding:0 .75rem;'
+        'background:#d5e8e3;color:#105d48;border-radius:.5rem}'
+        'a:hover{background:#b8dcd0}a:focus-visible{outline:2px solid currentColor;outline-offset:-3px}'
+        '@media(prefers-color-scheme:dark){a{background:#1a3b36;color:#81e7c1}'
+        'a:hover{background:#244e46}}</style>'
         f'<body>{links}</body></html>',
         tab_index=0, alt='Выгрузки выбранного отчёта',
     )
@@ -286,7 +278,7 @@ def _reports(client, signal):
         return
     st.write('Отчёт сохраняет версию снимка и вашу проверку на момент создания. Brent доступен только для просмотра.')
     report_key = f'private:{client.actor}:report'
-    if st.button('Создать отчёт', disabled=not signal):
+    if st.button('Создать отчёт', type='primary', disabled=not signal):
         st.session_state[report_key] = client.create_report()
     ids = client.report_ids()
     if not ids:
@@ -314,19 +306,20 @@ def _methodology():
 
 def render_workspace():
     st.set_page_config(page_title='ArcShift · Рабочее место аналитика', layout='wide')
-    st.html(CSS)
+    st.html(Path(__file__).with_name('workspace.css'))
     if 'arc_accounts' not in st.session_state:
         st.session_state.arc_accounts = {alias: uuid4().hex for alias in ('Демо A', 'Демо B')}
         st.session_state.arc_alias = None
         _refresh()
     with st.sidebar:
-        st.markdown('### ArcShift V1')
-        mode = st.selectbox('Режим данных', ('Синтетическое демо', 'Рабочий режим'), on_change=_refresh)
+        st.html(BRAND)
         page = st.radio('Раздел', PAGES, key='arc_page')
+        st.divider()
+        mode = st.selectbox('Режим данных', ('Синтетическое демо', 'Рабочий режим'), on_change=_refresh)
         demo = mode == 'Синтетическое демо'
         scenario = st.selectbox('Сценарий данных', list(SCENARIOS), format_func=SCENARIOS.get,
                                 on_change=_refresh) if demo else None
-        st.button('Обновить проверку', on_click=_refresh)
+        st.button('Обновить проверку', width='stretch', on_click=_refresh)
         if demo:
             st.caption(f'Сессия · {st.session_state.arc_alias or "гость"}')
 
@@ -334,6 +327,7 @@ def render_workspace():
     store = Path(os.getenv('ARCSHIFT_DEMO_DB', str(ROOT / '.cache/arcshift-ui/demo.sqlite3')))
     client = FixtureClient(store, actor) if demo else UnavailableClient()
     data = client.workspace(scenario, st.session_state.arc_refreshed)
+    st.html('<span class="arc-kicker">Мониторинг рынков / Россия</span>')
     st.title(page)
     if data['state'] == 'unavailable':
         st.warning('Рабочий режим недоступен. Требуются допуск данных и модели и подключение API I03/I04.')
@@ -341,10 +335,14 @@ def render_workspace():
         if page == 'Методология':
             _methodology()
         return
-    st.html('<div class="arc-banner"><strong>СИНТЕТИЧЕСКИЕ ДАННЫЕ · ДЕМО</strong>'
-            '<p>Россия · рабочее место аналитика. Текущая оценка риска недоступна.</p></div>')
-    st.caption(f'Информация на {timestamp(data["information_as_of"])} · '
-               f'проверка интерфейса {timestamp(data["refreshed_at"])}')
+    as_of = escape(timestamp(data['information_as_of']))
+    refreshed = escape(timestamp(data['refreshed_at']))
+    st.html(
+        '<div class="arc-banner"><div><strong class="arc-badge">СИНТЕТИЧЕСКИЕ ДАННЫЕ · ДЕМО</strong>'
+        '<p>Текущая оценка риска недоступна.</p></div><dl class="arc-meta">'
+        f'<div><dt>Информация на</dt><dd>{as_of}</dd></div>'
+        f'<div><dt>Проверка интерфейса</dt><dd>{refreshed}</dd></div></dl></div>'
+    )
     if data['state'] in STATES:
         severity, message = STATES[data['state']]
         getattr(st, severity)(message)

@@ -38,7 +38,7 @@ def nav(page, section):
 
 def choose(page, label, choice, scope=None):
     box = (scope or page).get_by_test_id('stSelectbox').filter(has_text=label)
-    box.get_by_role('combobox').click()
+    box.get_by_role('button', name='Open', exact=True).click()
     page.get_by_role('option', name=choice, exact=True).click()
 
 
@@ -85,11 +85,12 @@ class WorkspaceBrowserTest(unittest.TestCase):
         warning = page.get_by_role('heading', name=WARNING)
         expect(warning).to_have_count(1)
         refresh = page.get_by_role('button', name='Обновить проверку')
-        before = page.get_by_text(re.compile(r'^Информация на ')).inner_text()
+        as_of = page.get_by_text('Информация на', exact=True).locator('xpath=following-sibling::dd')
+        before = as_of.inner_text()
         refresh.click()
         refresh.click()
         expect(warning).to_have_count(1)
-        self.assertEqual(before.split(' · ')[0], page.get_by_text(re.compile(r'^Информация на ')).inner_text().split(' · ')[0])
+        expect(as_of).to_have_text(before)
         button(page, 'Разобрать сигнал').click()
         expect(page.get_by_text('Синтетическая оценка · 0.35')).to_be_visible()
         expect(page.get_by_text('synthetic-no-fitted-model / нет', exact=True)).to_be_visible()
