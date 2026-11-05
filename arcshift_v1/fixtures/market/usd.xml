@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- SYNTHETIC TEST VALUES. This is not a provider response. -->
+<ValCurs ID="R01235">
+  <Record Date="03.11.2026" Id="R01235"><Nominal>1</Nominal><Value>80,00</Value></Record>
+  <Record Date="04.11.2026" Id="R01235"><Nominal>1</Nominal><Value>80,50</Value></Record>
+  <Record Date="05.11.2026" Id="R01235"><Nominal>1</Nominal><Value>81,00</Value></Record>
+</ValCurs>

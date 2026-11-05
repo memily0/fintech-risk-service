@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=69,<100"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "arcshift-local-integration"
+version = "0.1.0.dev0"
+description = "Local synthetic ArcShift integration, not a production risk service"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.115,<1",
+    "uvicorn>=0.30,<1",
+    "pwdlib[argon2]>=0.2,<1",
+    "email-validator>=2,<3",
+]
+
+[tool.setuptools]
+packages = ["arcshift_v1", "arcshift_data"]
+
+[tool.setuptools.package-dir]
+arcshift_v1 = "arcshift_v1"
+arcshift_data = "src/arcshift_data"
+
+[tool.setuptools.package-data]
+arcshift_v1 = ["fixtures/*.json", "fixtures/market/*", "migrations/*.sql", "static/*"]

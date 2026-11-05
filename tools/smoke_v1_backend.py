@@ -61,6 +61,12 @@ def check_once(database_path, extra_check=None):
         demo = get("/api/v1/demo/scenarios/historical_demo")["scenario"]["signal"]
         if demo["score_kind"] != "synthetic_uncalibrated_score":
             raise RuntimeError("Demo score lost its synthetic label")
+        market = get("/api/v1/market/series")
+        if len(market["series"]) != 7 or market["validity_status"] != "historical_demo" or market["source_rights_status"] != "not_admitted":
+            raise RuntimeError("Market history lost its synthetic boundary")
+        history = get("/api/v1/market/series/ru.fx.cbr.usd_rub.official/history?include_revisions=true")
+        if history["total"] != 4 or history["observations"][-1]["observation"]["value"] != 81.2 or any(row["observation"]["published_at"] is not None for row in history["observations"]):
+            raise RuntimeError("Parser history or unknown publication metadata changed")
         get("/openapi.json")
         if extra_check is not None:
             extra_check(base)
@@ -86,6 +92,8 @@ def persisted_state(path):
             connection.execute("SELECT * FROM schema_migrations ORDER BY version").fetchall(),
             connection.execute("SELECT * FROM fixture_snapshots ORDER BY snapshot_id").fetchall(),
             connection.execute("SELECT * FROM fixture_active_snapshot").fetchall(),
+            connection.execute("SELECT * FROM local_market_snapshots").fetchall(),
+            connection.execute("SELECT * FROM local_market_active").fetchall(),
         )
 
 

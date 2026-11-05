@@ -17,6 +17,7 @@
       <div class="workspace-label">RISK WORKSPACE</div>
       <nav aria-label="Разделы">
         <button class="nav-button active" data-view="monitor" aria-current="page"><i data-lucide="panels-top-left"></i><span>Мониторинг</span></button>
+        <button class="nav-button" data-view="history"><i data-lucide="table-2"></i><span>История рядов</span></button>
         <button class="nav-button" data-view="watchlist"><i data-lucide="bookmark"></i><span>Наблюдение</span><span id="watch-count" class="count">0</span></button>
         <button class="nav-button" data-view="reviews"><i data-lucide="clipboard-list"></i><span>Разборы</span><span id="review-count" class="count">0</span></button>
         <button class="nav-button" data-view="system"><i data-lucide="database"></i><span>Состояние системы</span></button>
@@ -39,7 +40,7 @@
           <div><span class="metric-label">Покрытие</span><strong>Россия</strong><small>Глобальные факторы · контекст</small></div>
           <div><span class="metric-label">Источники</span><strong class="text-amber">Не допущены</strong><small>Live-обновление не подключено</small></div>
           <div><span class="metric-label">Модель</span><strong>Не допущена</strong><small>Текущий прогноз недоступен</small></div>
-          <div><span class="metric-label">Данные экрана</span><strong>6 состояний</strong><small>Фиксированный synthetic snapshot</small></div>
+          <div><span class="metric-label">Данные экрана</span><strong id="data-summary-value">6 состояний</strong><small id="data-summary-caption">Фиксированный synthetic snapshot</small></div>
         </section>
         <section id="monitor-view" class="view-section">
           <div class="section-toolbar"><h2 id="list-title">Состояния данных</h2><label class="search-field"><i data-lucide="search"></i><input id="scenario-search" type="search" placeholder="Поиск" aria-label="Поиск состояний"></label></div>
@@ -53,6 +54,18 @@
           <div class="work-grid"><div id="review-rows" class="review-list"></div><section id="review-detail" class="detail-panel" aria-label="Карточка разбора"></section></div>
         </section>
         <section id="system-view" class="view-section" hidden><div class="section-toolbar"><h2>Состояние сервиса</h2></div><dl id="system-details" class="system-details"></dl></section>
+        <section id="history-view" class="view-section" hidden>
+          <div class="section-toolbar"><h2>Наблюдения и ревизии</h2><span class="state-label">Синтетические примеры</span></div>
+          <div class="history-controls">
+            <label>Показатель<select id="history-series" aria-label="Показатель"></select></label>
+            <label>С<input id="history-start" type="date" aria-label="Начало периода"></label>
+            <label>По<input id="history-end" type="date" aria-label="Конец периода"></label>
+            <label class="checkbox-label"><input id="history-revisions" type="checkbox">Все ревизии</label>
+          </div>
+          <dl id="history-metadata" class="evidence-list"></dl>
+          <div id="history-status" class="detail-message" role="status"></div>
+          <div class="history-table-wrap"><table class="history-table"><thead><tr><th>Период</th><th>Значение</th><th>Единица</th><th>Публикация</th><th>Получение</th><th>Ревизия</th></tr></thead><tbody id="history-rows"></tbody></table></div>
+        </section>
       </main>
       <footer>ArcShift <span>Локальные тестовые аккаунты · Не production</span><span id="connection-state">Проверка соединения</span></footer>
     </div>

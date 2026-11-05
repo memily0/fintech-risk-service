@@ -102,6 +102,13 @@ class WorkspaceTests(unittest.TestCase):
         self.assertEqual([event["status"] for event in report["events"]], ["acknowledged", "in_review", "closed"])
         self.assertEqual(report["events"][-1]["revision"], report["review"]["revision"])
 
+    def test_closed_and_dismissed_require_nonempty_note_per_team_contract(self):
+        review = self.create()
+        review = self.patch(review).json()
+        for status in ("closed", "dismissed"):
+            self.assertEqual(self.patch(review, status, "   ").status_code, 422)
+        self.assertEqual(self.client.get(BASE + "/reviews/" + review["review_id"]).json()["revision"], 2)
+
     def test_two_users_cannot_access_each_others_reviews_in_any_export(self):
         review = self.create()
         root = BASE + "/reviews/" + review["review_id"]

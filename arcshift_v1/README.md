@@ -1,6 +1,6 @@
 # Local Integration Workbench
 
-This is the I02-I04.1 local integration build, not production ArcShift V1.
+This is the I02-I05.1 local integration build, not production ArcShift V1.
 It has a FastAPI service, persistent SQLite fixtures, synthetic .test accounts,
 owner-scoped watchlists/reviews and a responsive browser workbench. It does not
 replace the existing Streamlit app, train models, fetch provider data, load old
@@ -13,6 +13,7 @@ From the product repository root, using a separate environment:
 ```sh
 python3 -m venv .venv-v1
 .venv-v1/bin/python -m pip install -r requirements-v1.lock
+.venv-v1/bin/python -m pip install --no-build-isolation --no-deps -e .
 .venv-v1/bin/python -m arcshift_v1
 ```
 
@@ -107,6 +108,31 @@ run provider downloads, rebuild CSVs, fit models or schedule jobs. The store
 protocol is the replacement boundary for later admitted data; current response
 models deliberately refuse production/live score claims.
 
+## Data Lane Integration
+
+Nastya's D01-D03 code at `8bdb1de597eb5d567a8a19c84435ad9294a206cc`
+is preserved under `src/arcshift_data`; see [integration record](../docs/v1_data_integration.md).
+The editable package connects it without PYTHONPATH manipulation. Local startup
+uses its actual FX/curve/CPI parsers and revision store on explicitly invented
+provider-shaped fixtures, then atomically publishes an immutable SQLite read
+snapshot. Real receipts remain prohibited. The market registry snapshot is
+packaged explicitly, so the API also works from an unpacked wheel outside the
+checkout. The data helper's default external config path is for source checkouts;
+the API passes its packaged synthetic registry explicitly.
+
+- `GET /api/v1/market/series`: seven synthetic series, metadata and row counts.
+- `GET /api/v1/market/series/{series_id}/history`: date filtering, bounded
+  pagination and optional `include_revisions=true`.
+- Candidate market contract: `v1-local-market.1`, always synthetic,
+  `validity_status=historical_demo`, `source_rights_status=not_admitted`.
+
+The browser History view reads this API. Receipt time and unknown publication
+stay distinct. Restart preserves the active snapshot and does not roll it back
+to the original seed. Content hashes, contiguous revisions, latest-map
+consistency and series/resource/unit bindings are checked on reads. These are
+not real provider connectivity, a scheduler, freshness admission or model input
+acceptance. The runtime never exposes the producer JSON as a file browser.
+
 ## Fixture Provenance
 
 fixtures/ui_scenarios.json preserves the shared v1-handoff.1 content from
@@ -126,7 +152,7 @@ Do not replace these examples with real user or provider data.
 ```
 
 The smoke check starts two successive temporary servers on free loopback ports,
-checks real HTTP responses, and verifies one SQLite snapshot and the migration
+checks real HTTP responses, and verifies fixture/market snapshots and migration
 history survive restart without duplication. Both child processes stop, and
 the temporary test database is removed. It does not touch your default runtime
 database or leave a public server running. Tests use synthetic examples only, not the 40 V1 acceptance
@@ -157,7 +183,8 @@ and mobile. Browser print is available, not server-side PDF generation.
 Each review freezes the exact synthetic scenario and content-addressed SQLite
 snapshot. Edits require `expected_revision`; stale edits return 409 without
 overwriting the newer note. Status transitions and times are recorded; closing
-a review is not evidence of model correctness. Events retain status/revision,
+a review is not evidence of model correctness. Closing/dismissing requires a
+nonempty analyst note. Events retain status/revision,
 not a complete history of previous note text. Foreign IDs return 404, anonymous
 requests 401. Export labels remain synthetic and not admitted; CSV neutralizes
 formula prefixes. Notes render as text, never as HTML. The browser clears

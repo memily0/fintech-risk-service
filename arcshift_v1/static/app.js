@@ -2,6 +2,9 @@
 
 const $ = (id) => document.getElementById(id);
 const state = { view: "monitor", scenarios: [], selected: "historical_demo", user: null, watchlist: [], reviews: [], review: null, health: null, authMode: "login", generation: 0, moreReviews: false };
+Object.assign(state, { market: null, history: null, historyGeneration: 0, historyLoading: false });
+const seriesLabels = { "ru.fx.cbr.usd_rub.official": "USD/RUB · условный курс", "ru.fx.cbr.eur_rub.official": "EUR/RUB · условный курс", "ru.prices.rosstat.cpi_yoy": "Инфляция · условный CPI YoY", "ru.curve.cbr.zero_coupon.1y": "Кривая ОФЗ · условные 1 год", "ru.curve.cbr.zero_coupon.2y": "Кривая ОФЗ · условные 2 года", "ru.curve.cbr.zero_coupon.5y": "Кривая ОФЗ · условные 5 лет", "ru.curve.cbr.zero_coupon.10y": "Кривая ОФЗ · условные 10 лет" };
+const unitLabels = { RUB_per_USD: "₽ / USD", RUB_per_EUR: "₽ / EUR", percent_per_annum: "% годовых", percent_YoY: "% г/г" };
 const labels = { historical_demo: "Исторический пример", loading: "Получение данных", empty: "История отсутствует", stale: "Данные устарели", unsupported: "Не поддерживается", error: "Источник недоступен" };
 const icons = { historical_demo: "chart-no-axes-combined", loading: "loader-circle", empty: "inbox", stale: "clock-3", unsupported: "circle-slash", error: "unplug" };
 const statusLabels = { acknowledged: "Принят", in_review: "В разборе", closed: "Закрыт", dismissed: "Отклонён" };
@@ -51,7 +54,9 @@ async function api(path, { method = "GET", data, blob = false } = {}) {
   if (!response.ok) {
     const detail = await response.json().catch(() => ({}));
     if (response.status === 401 && state.user) { clearPersonal(); render(); }
-    const error = new Error(messages[detail.detail?.code] || "Запрос не выполнен. Код: " + response.status);
+    const code = detail.detail?.code;
+    const message = code === "invalid_request" && !path.startsWith("/api/v1/auth/") ? "Проверьте параметры запроса и формат дат." : code === "invalid_date_range" ? "Начало периода должно быть не позже конца." : messages[code];
+    const error = new Error(message || "Запрос не выполнен. Код: " + response.status);
     error.status = response.status; throw error;
   }
   if (response.status === 204) return null;
@@ -72,8 +77,10 @@ function empty(title, signedOut = false) {
   return result;
 }
 function render() {
-  const titles = { monitor: "Мониторинг", watchlist: "Наблюдение", reviews: "Разборы", system: "Состояние системы" };
+  const titles = { monitor: "Мониторинг", history: "История рядов", watchlist: "Наблюдение", reviews: "Разборы", system: "Состояние системы" };
   $("page-title").textContent = titles[state.view]; document.title = "ArcShift | " + titles[state.view];
+  $("data-summary-value").textContent = state.view === "history" && state.market ? state.market.series.length + " рядов" : "6 состояний";
+  $("data-summary-caption").textContent = state.view === "history" ? "Синтетические parser fixtures" : "Фиксированный synthetic snapshot";
   document.querySelectorAll("[data-view]").forEach((item) => {
     const active = item.dataset.view === state.view; item.classList.toggle("active", active);
     if (active) item.setAttribute("aria-current", "page"); else item.removeAttribute("aria-current");
@@ -83,9 +90,11 @@ function render() {
   $("watch-count").textContent = String(state.watchlist.length); $("review-count").textContent = state.reviews.length + (state.moreReviews ? "+" : "");
   $("monitor-view").hidden = !["monitor", "watchlist"].includes(state.view);
   $("reviews-view").hidden = state.view !== "reviews"; $("system-view").hidden = state.view !== "system";
+  $("history-view").hidden = state.view !== "history";
   if (["monitor", "watchlist"].includes(state.view)) renderMonitor();
   if (state.view === "reviews") renderReviews();
   if (state.view === "system") renderSystem();
+  if (state.view === "history") renderHistory();
   updateIcons();
 }
 function renderMonitor() {
@@ -200,6 +209,41 @@ function renderSystem() {
   const details = $("system-details"); details.replaceChildren();
   details.append(detailRow("API", state.health?.status === "ok" ? "Доступен" : "Недоступен"), detailRow("Контракт данных", "v1-fixture.1"), detailRow("Контракт аккаунтов", "v1-local-auth.1"), detailRow("Контракт разбора", "v1-local-workspace.1"), detailRow("Контур", "Локальная synthetic-сборка"), detailRow("Источник данных", "Синтетические fixtures"), detailRow("Live-обновление", "Не подключено"), detailRow("Модель", "Не допущена"), detailRow("Публичный запуск", "Не допущен"));
 }
+function renderHistory() {
+  const select = $("history-series");
+  if (select.options.length !== (state.market?.series.length || 0)) {
+    const selected = select.value; select.replaceChildren();
+    for (const series of state.market?.series || []) { const option = node("option", "", seriesLabels[series.series_id] || series.series_id); option.value = series.series_id; select.append(option); }
+    if ([...select.options].some((option) => option.value === selected)) select.value = selected;
+    else if ([...select.options].some((option) => option.value === "ru.fx.cbr.usd_rub.official")) select.value = "ru.fx.cbr.usd_rub.official";
+  }
+  const metadata = $("history-metadata"), rows = $("history-rows"); metadata.replaceChildren(); rows.replaceChildren();
+  const selected = state.market?.series.find((series) => series.series_id === select.value);
+  if (selected) metadata.append(detailRow("Источник кандидата", selected.source_id), detailRow("Ресурс", selected.resource_id, true), detailRow("Версия данных", state.market.data_snapshot_id, true), detailRow("Допуск", "Не подтверждён · только synthetic"));
+  $("history-status").textContent = state.historyLoading ? "Получение сохранённого снимка" : state.history ? "Записей: " + state.history.total + (state.history.total > state.history.observations.length ? " · показаны первые " + state.history.observations.length : "") : "История недоступна";
+  if (!state.historyLoading && state.history) for (const revision of state.history.observations) {
+    const observation = revision.observation, tr = node("tr", revision.is_latest ? "" : "superseded");
+    const period = observation.reference_start === observation.reference_end ? observation.reference_start : observation.reference_start + " — " + observation.reference_end;
+    const values = [period, observation.value.toLocaleString("ru-RU"), unitLabels[observation.units] || observation.units, observation.published_at ? new Date(observation.published_at).toLocaleString("ru-RU") : "Неизвестно", new Date(observation.received_at).toLocaleString("ru-RU"), "r" + revision.revision_number + (revision.is_latest ? " · текущая" : " · заменена")];
+    for (const value of values) tr.append(node("td", "", value)); rows.append(tr);
+  }
+}
+async function loadMarket() {
+  state.market = await api("/api/v1/market/series"); renderHistory(); await loadHistory();
+}
+async function loadHistory() {
+  const series = $("history-series").value;
+  if (!series) return;
+  const generation = ++state.historyGeneration;
+  const params = new URLSearchParams({ limit: "500", include_revisions: String($("history-revisions").checked) });
+  if ($("history-start").value) params.set("start", $("history-start").value);
+  if ($("history-end").value) params.set("end", $("history-end").value);
+  state.historyLoading = true; state.history = null; renderHistory();
+  try {
+    const result = await api("/api/v1/market/series/" + encodeURIComponent(series) + "/history?" + params);
+    if (generation === state.historyGeneration) state.history = result;
+  } finally { if (generation === state.historyGeneration) { state.historyLoading = false; renderHistory(); } }
+}
 async function loadPrivate(append = false) {
   if (!state.user) return;
   const generation = state.generation;
@@ -229,11 +273,12 @@ $("login-button").addEventListener("click", openAuth);
 $("close-auth").addEventListener("click", () => $("auth-dialog").close());
 $("auth-dialog").addEventListener("close", () => { $("password-input").value = ""; $("token-input").value = ""; });
 $("scenario-search").addEventListener("input", renderMonitor);
+for (const id of ["history-series", "history-start", "history-end", "history-revisions"]) $(id).addEventListener("change", () => run(loadHistory));
 $("logout-button").addEventListener("click", () => run(async () => { if (!canLeaveReview()) return; await api("/api/v1/auth/logout", { method: "POST" }); clearPersonal(); accountChannel?.postMessage("changed"); state.view = "monitor"; render(); notice("Вы вышли из аккаунта."); }, $("logout-button")));
 $("more-reviews").addEventListener("click", () => run(async () => { await loadPrivate(true); render(); }, $("more-reviews")));
 $("refresh-button").addEventListener("click", () => run(async () => {
   if (!canLeaveReview()) return;
-  await checkConnection(); state.scenarios = (await api("/api/v1/demo/scenarios")).scenarios; await loadPrivate(); render(); notice("");
+  await checkConnection(); state.scenarios = (await api("/api/v1/demo/scenarios")).scenarios; await loadPrivate(); await loadMarket(); render(); notice("");
 }, $("refresh-button")));
 $("auth-form").addEventListener("submit", (event) => {
   event.preventDefault(); const submit = $("auth-submit"); submit.disabled = true;
@@ -255,6 +300,7 @@ async function start() {
   try {
     state.scenarios = (await api("/api/v1/demo/scenarios")).scenarios;
     await checkConnection();
+    await loadMarket();
     try { state.user = await api("/api/v1/auth/me"); await loadPrivate(); } catch (error) { if (error.status !== 401) notice(error.message); }
   } catch (error) { notice(error.message); }
   render();

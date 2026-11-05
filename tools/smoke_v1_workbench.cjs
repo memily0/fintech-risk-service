@@ -51,6 +51,21 @@ async function main() {
     assert.equal(await page.locator("#scenario-detail .signal-number").textContent(), "0.35");
     if (evidence) await page.screenshot({ path: path.join(evidence, "desktop-monitor.png"), fullPage: true });
 
+    await page.locator('[data-view="history"]').click();
+    await page.locator("#history-rows tr").first().waitFor();
+    assert.equal(await page.locator("#history-series option").count(), 7);
+    assert.equal(await page.locator("#history-rows tr").count(), 3);
+    assert.ok((await page.locator("#history-rows").textContent()).includes("Неизвестно"));
+    await page.locator("#history-revisions").check();
+    await page.waitForFunction(() => document.querySelectorAll("#history-rows tr").length === 4);
+    assert.equal(await page.locator("#history-rows tr.superseded").count(), 1);
+    await page.locator("#history-start").fill("2026-11-05");
+    await page.locator("#history-start").dispatchEvent("change");
+    await page.waitForFunction(() => document.querySelectorAll("#history-rows tr").length === 2);
+    if (evidence) await page.screenshot({ path: path.join(evidence, "desktop-history.png"), fullPage: true });
+    await page.locator("#history-start").fill(""); await page.locator("#history-start").dispatchEvent("change");
+    await page.locator('[data-view="monitor"]').click();
+
     await page.locator("#login-button").click();
     await page.locator('[data-auth="register"]').click();
     await page.locator("#email-input").fill("browser@example.test");
@@ -117,10 +132,12 @@ async function main() {
 
     for (const width of [390, 320]) {
       await page.setViewportSize({ width, height: 844 });
-      for (const view of ["monitor", "watchlist", "reviews", "system"]) {
+      for (const view of ["monitor", "history", "watchlist", "reviews", "system"]) {
         await page.locator(`[data-view="${view}"]`).click();
         assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), `Horizontal overflow: ${view} at ${width}`);
       }
+      await page.locator('[data-view="history"]').click();
+      if (evidence) await page.screenshot({ path: path.join(evidence, `history-mobile-${width}.png`), fullPage: true });
       await page.locator('[data-view="monitor"]').click();
       if (evidence) await page.screenshot({ path: path.join(evidence, `mobile-${width}.png`), fullPage: true });
     }
@@ -138,7 +155,7 @@ async function main() {
     assert.deepEqual(errors, []); assert.deepEqual(external, []);
     await browser.close(); browser = null;
     child.kill("SIGTERM"); await exit; stopped = true;
-    return { status: "ok", viewports: [1440, 390, 320], full_account_flow: true, watchlist_and_review_persisted: true, report_json_csv_and_print_verified: true, foreign_report_access_blocked: true, cross_tab_logout_cleared_private_state: true, script_injection_blocked: true, external_requests: 0, browser_errors: 0, server_stopped_after_check: true, production_ready: false };
+    return { status: "ok", viewports: [1440, 390, 320], parser_history_and_revisions_verified: true, full_account_flow: true, watchlist_and_review_persisted: true, report_json_csv_and_print_verified: true, foreign_report_access_blocked: true, cross_tab_logout_cleared_private_state: true, script_injection_blocked: true, external_requests: 0, browser_errors: 0, server_stopped_after_check: true, production_ready: false };
   } finally {
     if (browser) await browser.close();
     if (child && !stopped && child.exitCode === null) {

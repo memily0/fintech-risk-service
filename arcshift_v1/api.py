@@ -14,6 +14,8 @@ from .auth import AuthFailure, AuthService
 from .auth_api import router as auth_router
 from .workspace_api import router as workspace_router
 from .web import router as web_router
+from .market import MarketStore
+from .market_api import router as market_router
 from .database import SchemaError
 from .schemas import CapabilitiesResponse, HealthResponse, ScenarioListResponse, ScenarioResponse
 from .settings import Settings
@@ -40,11 +42,13 @@ def create_app(settings: Settings | None = None, store_factory: Callable[[], Sce
     async def lifespan(app):
         app.state.scenario_store = factory()
         app.state.auth_service = AuthService(config.database_path) if config.storage_backend == "sqlite" and store_factory is None else None
+        app.state.market_store = MarketStore.open(config.database_path if app.state.auth_service is not None else None)
         try:
             yield
         finally:
             del app.state.scenario_store
             del app.state.auth_service
+            del app.state.market_store
 
     app = FastAPI(
         title="ArcShift V1 Local Fixture API",
@@ -58,6 +62,7 @@ def create_app(settings: Settings | None = None, store_factory: Callable[[], Sce
     app.include_router(auth_router)
     app.include_router(workspace_router)
     app.include_router(web_router)
+    app.include_router(market_router)
 
     @app.exception_handler(AuthFailure)
     async def authentication_failure(request, exc):
@@ -97,6 +102,7 @@ def create_app(settings: Settings | None = None, store_factory: Callable[[], Sce
         store.check_ready()
         if app.state.auth_service is not None:
             app.state.auth_service.check_ready()
+        app.state.market_store.check_ready()
         return HealthResponse(environment=config.environment)
 
     @app.get("/api/v1/capabilities", response_model=CapabilitiesResponse)

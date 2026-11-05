@@ -1,0 +1,15 @@
+{
+  "indicator_id": "11521100300010200001",
+  "rows": [
+    {
+      "period": "2026-09",
+      "dimension_codes": {
+        "territory": "SYNTHETIC_RU",
+        "coverage": "SYNTHETIC_ALL_ITEMS",
+        "comparison": "SYNTHETIC_YEAR_AGO",
+        "frequency": "SYNTHETIC_MONTHLY"
+      },
+      "index_percent": 105.5
+    }
+  ]
+}

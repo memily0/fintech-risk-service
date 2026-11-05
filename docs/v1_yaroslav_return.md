@@ -57,3 +57,7 @@ History export и source-backed warnings пока не реализованы э
 Старые ML/Streamlit файлы не заменены; модели не обучались. Секреты, почтовые
 токены, личные runtime DB, исходные интервью и private research не включены.
 Переключение на production/public bind запрещено текущими settings.
+
+Следующий checkpoint: [I05.1 data integration](v1_data_integration.md).
+Он добавляет историю и устраняет упомянутый выше пробел пустой closure-note;
+98 tests и ограничения выше относятся именно к исходному коммиту `9875c9b`.

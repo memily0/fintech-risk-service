@@ -51,6 +51,13 @@ class UpdateReview(ContractModel):
     status: ReviewStatus
     note: Annotated[str, Field(max_length=4000, strict=True)]
 
+    @field_validator("note")
+    @classmethod
+    def closure_requires_note(cls, value, info):
+        if info.data.get("status") in {"closed", "dismissed"} and not value.strip():
+            raise ValueError("Closing or dismissing requires an analyst note")
+        return value
+
 
 class ReviewView(WorkspaceView):
     review_id: str
