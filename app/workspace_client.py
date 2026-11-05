@@ -14,6 +14,11 @@ SNAPSHOT = 'synthetic-ui-001'
 POLICY = 'synthetic-warning-v1'
 WARNING_ID = f'{SNAPSHOT}:{POLICY}'
 AS_OF = '2026-11-05T08:00:00+03:00'
+REPORT_OBSERVATION_FIELDS = (
+    'series_id', 'name', 'unit', 'geography', 'frequency', 'definition_id', 'source_id',
+    'calendar_id', 'reference_period', 'value', 'published_at', 'received_at',
+    'revision_id', 'snapshot_id', 'quality', 'synthetic',
+)
 STATUSES = {
     'new': 'Новое', 'acknowledged': 'Принято', 'in_review': 'В проверке',
     'closed': 'Закрыто', 'dismissed': 'Отклонено',
@@ -149,15 +154,12 @@ class FixtureClient:
     def create_report(self):
         review = self.review()
         source = self.workspace('historical_demo', None)
-        fields = ('series_id', 'name', 'unit', 'geography', 'frequency', 'definition_id', 'source_id',
-                  'calendar_id', 'reference_period', 'value', 'published_at', 'received_at',
-                  'revision_id', 'snapshot_id', 'quality', 'synthetic')
         report_id = uuid4().hex
         payload = {
             'id': report_id, 'synthetic': True, 'snapshot_id': SNAPSHOT,
             'fixture_version': source['fixture_version'], 'created_at': now(),
             'signal': source['signal'], 'review': review, 'warning_id': WARNING_ID,
-            'observations': [{field: row[field] for field in fields}
+            'observations': [{field: row[field] for field in REPORT_OBSERVATION_FIELDS}
                              for rows in source['series'].values() for row in rows if row['export_allowed']],
         }
         with self._store() as db:

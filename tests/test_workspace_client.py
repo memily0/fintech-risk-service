@@ -94,6 +94,16 @@ class WorkspaceTest(unittest.TestCase):
             self.assertIn(expected, content)
         self.assertNotIn('Brent', content)
 
+    def test_empty_csv_keeps_headers_without_observation_rows(self):
+        report = self.alice.report(self.alice.create_report())
+        full_csv = csv.DictReader(io.StringIO(csv_bytes(report).decode('utf-8-sig')))
+
+        empty_report = dict(report, observations=[])
+        empty_csv = csv.DictReader(io.StringIO(csv_bytes(empty_report).decode('utf-8-sig')))
+
+        self.assertEqual(empty_csv.fieldnames, full_csv.fieldnames)
+        self.assertEqual(list(empty_csv), [])
+
 
 if __name__ == '__main__':
     unittest.main()

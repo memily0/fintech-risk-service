@@ -8,17 +8,18 @@ import json
 import os
 from pathlib import Path
 
+from workspace_client import REPORT_OBSERVATION_FIELDS
+
 
 def timestamp(value):
     return value.replace('T', ' ') if value else 'Неизвестно'
 
 
 def csv_bytes(report):
-    rows = report['observations']
     output = StringIO(newline='')
-    writer = csv.DictWriter(output, fieldnames=list(rows[0]))
+    writer = csv.DictWriter(output, fieldnames=REPORT_OBSERVATION_FIELDS)
     writer.writeheader()
-    writer.writerows(rows)
+    writer.writerows(report['observations'])
     return output.getvalue().encode('utf-8-sig')
 
 
