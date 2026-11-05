@@ -5,6 +5,8 @@ __pycache__/
 .mpl-cache/
 .streamlit/
 .venv/
+.venv-v1/
+/.arcshift-v1/
 venv/
 env/
 

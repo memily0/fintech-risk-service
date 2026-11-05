@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>ArcShift | Мониторинг</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="/assets/app.css">
+  <script defer src="/assets/lucide.min.js"></script>
+  <script defer src="/assets/app.js"></script>
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <a class="brand" href="/" aria-label="ArcShift"><i data-lucide="activity" aria-hidden="true"></i>ArcShift</a>
+      <div class="workspace-label">RISK WORKSPACE</div>
+      <nav aria-label="Разделы">
+        <button class="nav-button active" data-view="monitor" aria-current="page"><i data-lucide="panels-top-left"></i><span>Мониторинг</span></button>
+        <button class="nav-button" data-view="watchlist"><i data-lucide="bookmark"></i><span>Наблюдение</span><span id="watch-count" class="count">0</span></button>
+        <button class="nav-button" data-view="reviews"><i data-lucide="clipboard-list"></i><span>Разборы</span><span id="review-count" class="count">0</span></button>
+        <button class="nav-button" data-view="system"><i data-lucide="database"></i><span>Состояние системы</span></button>
+      </nav>
+      <div class="sidebar-bottom"><span class="status-dot"></span>Локальная сборка <span class="version">V1</span></div>
+    </aside>
+    <div class="workspace">
+      <header class="topbar">
+        <div class="breadcrumb">Россия <span>/</span> Глобальный контекст</div>
+        <div class="account-actions"><span id="account-email" class="account-email"></span><button id="login-button" class="button secondary"><i data-lucide="log-in"></i><span>Войти</span></button><button id="logout-button" class="icon-button" title="Выйти" aria-label="Выйти" hidden><i data-lucide="log-out"></i></button></div>
+      </header>
+      <div class="environment-banner"><i data-lucide="flask-conical"></i><span>Синтетические данные</span><span class="banner-detail">Текущий риск не рассчитан · Модель не допущена</span></div>
+      <main id="main-content">
+        <section class="page-heading">
+          <div><p class="eyebrow">ARCSHIFT / РОССИЯ</p><h1 id="page-title">Мониторинг</h1></div>
+          <div class="refresh-group"><span id="checked-at">API: проверка</span><button id="refresh-button" class="icon-button" aria-label="Обновить" title="Обновить"><i data-lucide="refresh-cw"></i></button></div>
+        </section>
+        <div id="notice" class="notice" role="status" hidden></div>
+        <section class="summary-strip" aria-label="Статус покрытия">
+          <div><span class="metric-label">Покрытие</span><strong>Россия</strong><small>Глобальные факторы · контекст</small></div>
+          <div><span class="metric-label">Источники</span><strong class="text-amber">Не допущены</strong><small>Live-обновление не подключено</small></div>
+          <div><span class="metric-label">Модель</span><strong>Не допущена</strong><small>Текущий прогноз недоступен</small></div>
+          <div><span class="metric-label">Данные экрана</span><strong>6 состояний</strong><small>Фиксированный synthetic snapshot</small></div>
+        </section>
+        <section id="monitor-view" class="view-section">
+          <div class="section-toolbar"><h2 id="list-title">Состояния данных</h2><label class="search-field"><i data-lucide="search"></i><input id="scenario-search" type="search" placeholder="Поиск" aria-label="Поиск состояний"></label></div>
+          <div class="work-grid">
+            <div class="scenario-list"><div class="list-head"><span>Состояние</span><span>Сигнал</span><span>Статус</span></div><div id="scenario-rows"></div><div id="list-empty" class="empty-state" hidden><i data-lucide="inbox"></i><h3>Нет записей</h3></div></div>
+            <section id="scenario-detail" class="detail-panel" aria-label="Разбор состояния"></section>
+          </div>
+        </section>
+        <section id="reviews-view" class="view-section" hidden>
+          <div class="section-toolbar"><h2>Журнал разборов</h2><button id="more-reviews" class="button secondary" hidden><i data-lucide="plus"></i>Загрузить ещё</button></div>
+          <div class="work-grid"><div id="review-rows" class="review-list"></div><section id="review-detail" class="detail-panel" aria-label="Карточка разбора"></section></div>
+        </section>
+        <section id="system-view" class="view-section" hidden><div class="section-toolbar"><h2>Состояние сервиса</h2></div><dl id="system-details" class="system-details"></dl></section>
+      </main>
+      <footer>ArcShift <span>Локальные тестовые аккаунты · Не production</span><span id="connection-state">Проверка соединения</span></footer>
+    </div>
+  </div>
+  <dialog id="auth-dialog" aria-labelledby="auth-title">
+    <div class="dialog-heading"><h2 id="auth-title">Аккаунт</h2><button id="close-auth" class="icon-button" aria-label="Закрыть" title="Закрыть"><i data-lucide="x"></i></button></div>
+    <div class="segmented" role="tablist" aria-label="Авторизация"><button data-auth="login" role="tab" aria-selected="true" class="selected">Вход</button><button data-auth="register" role="tab" aria-selected="false">Регистрация</button><button data-auth="verify-email" role="tab" aria-selected="false">Подтверждение</button></div>
+    <form id="auth-form">
+      <div id="credential-fields"><label>Тестовая почта (.test)<input id="email-input" type="email" autocomplete="username" maxlength="254" placeholder="analyst@example.test" required></label><label>Пароль<input id="password-input" type="password" autocomplete="current-password" minlength="15" maxlength="128" required></label></div>
+      <label id="token-field" hidden>Токен подтверждения<input id="token-input" type="password" autocomplete="off" minlength="32" maxlength="128"></label>
+      <p id="auth-status" role="status"></p><button id="auth-submit" type="submit" class="button primary"><i data-lucide="log-in"></i><span>Войти</span></button>
+    </form>
+  </dialog>
+  <section id="print-report" class="print-report" aria-label="Отчёт"></section>
+</body>
+</html>

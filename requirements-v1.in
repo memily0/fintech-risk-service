@@ -1,0 +1,6 @@
+# Local fixture backend and its HTTP tests, separate from legacy ML runtime.
+fastapi>=0.115,<1
+uvicorn>=0.30,<1
+httpx>=0.27,<1
+pwdlib[argon2]>=0.2,<1
+email-validator>=2,<3
