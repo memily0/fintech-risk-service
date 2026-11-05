@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import unittest
+from unittest.mock import patch
 
+import numpy as np
 import pandas as pd
 
 from models.validation.temporal import (
@@ -9,6 +11,7 @@ from models.validation.temporal import (
     build_future_event_labels,
     temporal_training_mask,
 )
+from scripts import train_crisis_model as trainer
 
 
 class CompositeStressTests(unittest.TestCase):
@@ -121,6 +124,88 @@ class TemporalTrainingMaskTests(unittest.TestCase):
         )
 
         self.assertEqual(mask.tolist(), [False, True])
+
+
+class RecordingPipeline:
+    """Estimator stub that records trainer inputs without fitting a model."""
+
+    def __init__(self) -> None:
+        self.fit_index: list[int] = []
+        self.fit_target: list[int] = []
+
+    def fit(self, features: pd.DataFrame, target: pd.Series) -> "RecordingPipeline":
+        self.fit_index = features.index.tolist()
+        self.fit_target = target.tolist()
+        return self
+
+    def predict_proba(self, features: pd.DataFrame) -> np.ndarray:
+        return np.tile([0.5, 0.5], (len(features), 1))
+
+
+class TrainerTemporalIntegrationTests(unittest.TestCase):
+    def test_trainer_keeps_stress_warm_up_unknown(self) -> None:
+        row_count = 260
+        values = pd.Series(np.arange(row_count, dtype=float))
+        frame = pd.DataFrame(
+            {
+                "date": pd.date_range("2025-01-01", periods=row_count, freq="D"),
+                "vix": values,
+                "usd_volatility": values * 1.1,
+                "imoex_volatility": values * 1.2,
+                "imoex_drawdown": -(values * 0.01),
+                "ofz_spread_10_2": -(values * 0.02),
+            }
+        )
+
+        stress = trainer.build_stress_frame(frame)
+
+        self.assertTrue(stress.loc[:251, "stress_score"].isna().all())
+        self.assertTrue(stress.loc[:251, "stress_event"].isna().all())
+        self.assertTrue(stress.loc[252:, "stress_event"].notna().all())
+
+    def test_trainer_keeps_unknown_future_outcome_unknown(self) -> None:
+        row_count = 100
+        dates = pd.Series(pd.date_range("2026-01-01", periods=row_count, freq="D"))
+        events = pd.Series(0, index=dates.index, dtype="Int64")
+        events.iloc[1] = pd.NA
+        source = pd.DataFrame({"date": dates})
+        stress = pd.DataFrame(
+            {
+                "stress_score": pd.Series(0.0, index=dates.index),
+                "stress_event": events,
+            }
+        )
+
+        result = trainer.add_target_columns(source, stress)
+
+        self.assertTrue(pd.isna(result.loc[0, "target_7d"]))
+        self.assertTrue(result.loc[row_count - 7 :, "target_7d"].isna().all())
+
+    def test_trainer_excludes_cutoff_boundary_and_unknown_from_stub_fit(self) -> None:
+        row_count = 210
+        dates = pd.Series(pd.date_range("2026-01-01", periods=row_count, freq="D"))
+        target = pd.Series(np.arange(row_count) % 2, dtype="Int64")
+        target.iloc[100] = pd.NA
+        features = pd.DataFrame({"synthetic_feature": np.arange(row_count, dtype=float)})
+        cutoff = dates.iloc[203]
+        pipeline = RecordingPipeline()
+
+        with patch.object(trainer, "make_pipeline", return_value=pipeline):
+            metrics, predictions = trainer.evaluate_walk_forward(
+                features,
+                target,
+                dates,
+                [cutoff.isoformat()],
+                horizon_days=2,
+            )
+
+        self.assertEqual(len(metrics), 1)
+        self.assertEqual(max(pipeline.fit_index), 200)
+        self.assertNotIn(100, pipeline.fit_index)
+        self.assertNotIn(201, pipeline.fit_index)  # label_end == cutoff
+        self.assertNotIn(202, pipeline.fit_index)  # label_end > cutoff
+        self.assertEqual(len(pipeline.fit_index), 200)
+        self.assertFalse(predictions.loc[203:].isna().any())
 
 
 if __name__ == "__main__":
