@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
@@ -14,8 +15,17 @@ from sklearn.metrics import average_precision_score, brier_score_loss, roc_auc_s
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
-
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from models.validation.temporal import (
+    build_complete_composite_stress,
+    build_future_event_labels,
+    temporal_training_mask,
+)
+
+
 DEFAULT_DATA_PATH = PROJECT_ROOT / "data" / "final_dataset.csv"
 DEFAULT_PREDICTIONS_PATH = PROJECT_ROOT / "data" / "model_predictions.csv"
 DEFAULT_METRICS_PATH = PROJECT_ROOT / "data" / "model_metrics.json"
@@ -133,16 +143,25 @@ def build_stress_frame(df: pd.DataFrame) -> pd.DataFrame:
         component_data[label] = trailing_zscore(series)
     result = pd.DataFrame(component_data)
     component_columns = [column for column in result.columns if column != "date"]
-    stress_score = result[component_columns].mean(axis=1, skipna=True)
+    composite = build_complete_composite_stress(
+        {column: result[column] for column in component_columns},
+        threshold=STRESS_THRESHOLD,
+    )
     return result.assign(
-        stress_score=stress_score,
-        stress_event=stress_score >= STRESS_THRESHOLD,
+        stress_score=composite.score,
+        stress_event=composite.event,
     )
 
 
-def future_event_target(event: pd.Series, horizon_days: int) -> pd.Series:
-    shifted_events = [event.shift(-offset) for offset in range(1, horizon_days + 1)]
-    return pd.concat(shifted_events, axis=1).max(axis=1)
+def future_event_target(dates: pd.Series, event: pd.Series, horizon_days: int) -> pd.Series:
+    """Compatibility wrapper around the explicit calendar-day target helper."""
+
+    return build_future_event_labels(
+        dates,
+        event,
+        horizon_days=horizon_days,
+        outcomes_available_through=dates.max(),
+    ).target
 
 
 def add_target_columns(df: pd.DataFrame, stress: pd.DataFrame) -> pd.DataFrame:
@@ -151,10 +170,8 @@ def add_target_columns(df: pd.DataFrame, stress: pd.DataFrame) -> pd.DataFrame:
         "stress_score": stress["stress_score"],
         "stress_event": stress["stress_event"].astype("float"),
     }
-    max_date = result["date"].max()
     for horizon in HORIZONS_DAYS:
-        target = future_event_target(stress["stress_event"].astype("float"), horizon)
-        target = target.mask(result["date"] > max_date - pd.Timedelta(days=horizon))
+        target = future_event_target(result["date"], stress["stress_event"], horizon)
         target_columns[f"target_{horizon}d"] = target
     return result.assign(**target_columns)
 
@@ -227,6 +244,8 @@ def evaluate_walk_forward(
     target: pd.Series,
     dates: pd.Series,
     cutoffs: list[str],
+    *,
+    horizon_days: int,
 ) -> tuple[list[FoldMetrics], pd.Series]:
     predictions = pd.Series(np.nan, index=features.index, dtype=float)
     metrics: list[FoldMetrics] = []
@@ -234,7 +253,13 @@ def evaluate_walk_forward(
 
     for idx, cutoff in enumerate(cutoff_dates):
         next_cutoff = cutoff_dates[idx + 1] if idx + 1 < len(cutoff_dates) else dates.max() + pd.Timedelta(days=1)
-        train_mask = (dates < cutoff) & target.notna()
+        label_end = dates + pd.to_timedelta(horizon_days, unit="D")
+        train_mask = temporal_training_mask(
+            dates,
+            target,
+            label_end,
+            cutoff=cutoff,
+        )
         test_mask = (dates >= cutoff) & (dates < next_cutoff) & target.notna()
         if train_mask.sum() < 200 or test_mask.sum() == 0:
             continue
@@ -249,7 +274,7 @@ def evaluate_walk_forward(
         predictions.loc[test_mask] = y_score
         metrics.append(
             FoldMetrics(
-                train_end=(cutoff - pd.Timedelta(days=1)).date().isoformat(),
+                train_end=dates.loc[train_mask].max().date().isoformat(),
                 test_start=cutoff.date().isoformat(),
                 test_end=(next_cutoff - pd.Timedelta(days=1)).date().isoformat(),
                 observations=int(test_mask.sum()),
@@ -312,7 +337,13 @@ def train_horizon_model(
         raise RuntimeError(f"Target {target_name} has fewer than two classes")
 
     cutoffs = ["2018-01-01", "2020-01-01", "2022-01-01", "2024-01-01"]
-    fold_metrics, cv_predictions = evaluate_walk_forward(features, target, full_df["date"], cutoffs)
+    fold_metrics, cv_predictions = evaluate_walk_forward(
+        features,
+        target,
+        full_df["date"],
+        cutoffs,
+        horizon_days=horizon,
+    )
 
     final_pipeline = make_pipeline()
     final_pipeline.fit(features.loc[valid_mask], y)
@@ -335,12 +366,13 @@ def train_horizon_model(
     rows = []
     for idx, probability in enumerate(probabilities):
         row_features = features.iloc[[idx]]
+        stress_event = full_df.loc[idx, "stress_event"]
         rows.append(
             {
                 "date": full_df.loc[idx, "date"].date().isoformat(),
                 "horizon_days": horizon,
                 "stress_score": full_df.loc[idx, "stress_score"],
-                "stress_event": bool(full_df.loc[idx, "stress_event"]),
+                "stress_event": bool(stress_event) if pd.notna(stress_event) else np.nan,
                 "target": target.loc[idx] if pd.notna(target.loc[idx]) else np.nan,
                 "probability": probability,
                 "regime": probability_to_regime(float(probability)),

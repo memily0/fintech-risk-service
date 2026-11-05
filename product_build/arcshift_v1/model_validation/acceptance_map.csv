@@ -1,0 +1,10 @@
+scenario,scope,evidence,status,remaining_gate
+A17,warm-up and mandatory-component unknown,tests/test_temporal_validation.py::CompositeStressTests,implemented_synthetic,Shared target-definition review
+A18,unsupported horizon stale input or open bar,Target specification sections 3 and 6,designed_not_integrated,API/UI validity implementation and source calendar
+A19,label_end cutoff and unknown outcomes,tests/test_temporal_validation.py::TemporalTrainingMaskTests and FutureEventTargetTests,implemented_synthetic,Independent review
+A20,frozen validation calibration threshold and hashes,evaluation_protocol.md,designed_not_run,Approved manifest M04 fit and accepted artifact
+A21,fitted versus OOS history,target_split_specification.md section 5,designed_not_integrated,Prediction registry and UI implementation
+A22,signal metadata and logit drivers,target_split_specification.md sections 3 and 5,designed_not_integrated,I04 signal contract and M05 artifact
+A23,warning dedup and personal state,evaluation_protocol.md threshold section,out_of_model_lane,I04/U03 implementation and acceptance
+A24,policy version immutability and no outer tuning,evaluation_protocol.md threshold section,designed_not_run,Versioned warning store and M04 evidence
+A30,methodology target coverage horizon errors calibration and impact limits,target_split_specification.md plus claims_matrix.csv,documented,Product methodology UI and independent review

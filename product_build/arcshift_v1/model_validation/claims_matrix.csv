@@ -1,0 +1,15 @@
+claim_id,claim,status,required_evidence,notes
+C01,Target is a future ArcShift composite-stress threshold event,allowed_as_definition,Approved target definition and component version,Not an official crisis or bank-loss definition
+C02,Warm-up missing component or incomplete label window means no event,forbidden,none,Unknown must not become zero
+C03,Legacy horizons 7 30 and 90 days are approved V1 horizons,forbidden_currently,Approved scope decision,candidate_contract horizons_approved is empty
+C04,Historical score is out-of-sample,conditional,Immutable prediction receipt proving no fit preprocessing calibration or threshold exposure,Default to fitted or historical_demo when proof is absent
+C05,Balanced logistic score is a calibrated probability,forbidden_currently,Held-out calibration evidence and accepted calibration bounds,Class weighting alone does not calibrate
+C06,Model is better than baseline,conditional,Paired outer evaluation on matching origins with frozen protocol,All failed and negative results must be retained
+C07,Warning threshold is operationally acceptable,conditional,Approved burden or cost policy selected inside development loop,Legacy FAR 0.10 is not inherited
+C08,Drivers are causal effects or probability points,forbidden,none,Logistic contributions may be shown only in logit units
+C09,Current live risk is low when inputs are stale missing or unsupported,forbidden,none,Return unavailable stale or unsupported with reason
+C10,Historical fitted performance proves live performance,forbidden,Prospective mature-outcome monitoring required,Fitted OOS historical_demo and live are distinct
+C11,Model improves economic decisions,forbidden_currently,Separate empirical decision and outcome study,No such data exists in this package
+C12,Source failure proves no predictive signal,forbidden,none,Source admission and predictive evidence are separate
+C13,Artifact is production-admitted,conditional,M05 schema hash dependency cutoff registry and rollback checks plus independent review,M04 statistical acceptance alone is insufficient
+C14,The present M01-M03 work validates model quality,forbidden,Completed approved M04 outer evaluation,Current work validates helpers and specifies a protocol only
