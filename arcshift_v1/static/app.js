@@ -3,6 +3,9 @@
 const $ = (id) => document.getElementById(id);
 const state = { view: "monitor", scenarios: [], selected: "historical_demo", user: null, watchlist: [], reviews: [], review: null, health: null, authMode: "login", generation: 0, moreReviews: false };
 Object.assign(state, { market: null, history: null, historyGeneration: 0, historyLoading: false });
+Object.assign(state, { model: null, signal: null, modelGeneration: 0, modelLoading: false });
+const blockerLabels = { task_and_horizons_not_approved: "Задача и горизонты не утверждены", sources_not_admitted: "Источники не допущены для модели", mandatory_stress_inputs_incomplete: "Обязательные входы отсутствуют", evaluation_not_run: "Оценка качества не выполнена", accepted_artifact_missing: "Принятый артефакт модели отсутствует" };
+const componentLabels = { vix_zscore: "VIX", usd_rub_volatility_zscore: "Волатильность USD/RUB", imoex_volatility_zscore: "Волатильность IMOEX", imoex_drawdown_zscore: "Просадка IMOEX", ofz_inversion_zscore: "Инверсия кривой ОФЗ 10Y–2Y" };
 const seriesLabels = { "ru.fx.cbr.usd_rub.official": "USD/RUB · условный курс", "ru.fx.cbr.eur_rub.official": "EUR/RUB · условный курс", "ru.prices.rosstat.cpi_yoy": "Инфляция · условный CPI YoY", "ru.curve.cbr.zero_coupon.1y": "Кривая ОФЗ · условные 1 год", "ru.curve.cbr.zero_coupon.2y": "Кривая ОФЗ · условные 2 года", "ru.curve.cbr.zero_coupon.5y": "Кривая ОФЗ · условные 5 лет", "ru.curve.cbr.zero_coupon.10y": "Кривая ОФЗ · условные 10 лет" };
 const unitLabels = { RUB_per_USD: "₽ / USD", RUB_per_EUR: "₽ / EUR", percent_per_annum: "% годовых", percent_YoY: "% г/г" };
 const labels = { historical_demo: "Исторический пример", loading: "Получение данных", empty: "История отсутствует", stale: "Данные устарели", unsupported: "Не поддерживается", error: "Источник недоступен" };
@@ -77,7 +80,7 @@ function empty(title, signedOut = false) {
   return result;
 }
 function render() {
-  const titles = { monitor: "Мониторинг", history: "История рядов", watchlist: "Наблюдение", reviews: "Разборы", system: "Состояние системы" };
+  const titles = { monitor: "Мониторинг", history: "История рядов", model: "Модель", watchlist: "Наблюдение", reviews: "Разборы", system: "Состояние системы" };
   $("page-title").textContent = titles[state.view]; document.title = "ArcShift | " + titles[state.view];
   $("data-summary-value").textContent = state.view === "history" && state.market ? state.market.series.length + " рядов" : "6 состояний";
   $("data-summary-caption").textContent = state.view === "history" ? "Синтетические parser fixtures" : "Фиксированный synthetic snapshot";
@@ -91,10 +94,12 @@ function render() {
   $("monitor-view").hidden = !["monitor", "watchlist"].includes(state.view);
   $("reviews-view").hidden = state.view !== "reviews"; $("system-view").hidden = state.view !== "system";
   $("history-view").hidden = state.view !== "history";
+  $("model-view").hidden = state.view !== "model";
   if (["monitor", "watchlist"].includes(state.view)) renderMonitor();
   if (state.view === "reviews") renderReviews();
   if (state.view === "system") renderSystem();
   if (state.view === "history") renderHistory();
+  if (state.view === "model") renderModel();
   updateIcons();
 }
 function renderMonitor() {
@@ -244,6 +249,28 @@ async function loadHistory() {
     if (generation === state.historyGeneration) state.history = result;
   } finally { if (generation === state.historyGeneration) { state.historyLoading = false; renderHistory(); } }
 }
+function renderModel() {
+  const metadata = $("model-metadata"), blockers = $("model-blockers"), inputs = $("model-inputs"); metadata.replaceChildren(); blockers.replaceChildren(); inputs.replaceChildren();
+  $("current-signal-state").textContent = state.modelLoading ? "Проверка статуса" : "Недоступен";
+  if (!state.model) return;
+  metadata.append(detailRow("Задача кандидата", "Будущий пороговый стресс ArcShift"), detailRow("Определение цели", state.model.target_definition_id, true), detailRow("Горизонты-кандидаты", state.model.candidate_horizons_days.join(" / ") + " дней"), detailRow("Утверждённые горизонты", "Нет"), detailRow("Калибровка", "Не установлена"), detailRow("Снимок данных", state.model.data_snapshot_id, true), detailRow("Модельный контракт", state.model.model_contract_version, true));
+  for (const reason of state.model.blockers) blockers.append(node("li", "", blockerLabels[reason] || reason));
+  for (const item of state.model.input_coverage) {
+    const row = node("div", "model-input-row"), name = node("div");
+    name.append(node("strong", "", componentLabels[item.component] || item.component), node("small", "mono", item.required_series.join(" / ")));
+    row.append(name, node("span", "", item.present_in_synthetic_snapshot ? "Есть только synthetic" : "Нет в снимке")); inputs.append(row);
+  }
+}
+async function loadModel() {
+  const generation = ++state.modelGeneration;
+  state.modelLoading = true; state.model = null; state.signal = null; renderModel();
+  try {
+    const [profile, signal] = await Promise.all([api("/api/v1/models/status"), api("/api/v1/signals/current?horizon_days=" + $("model-horizon").value)]);
+    if (profile.data_snapshot_id !== signal.data_snapshot_id) throw new Error("Версии данных статуса и сигнала различаются. Обновите проверку.");
+    if (signal.signal !== null || profile.accepted_artifact_available !== false) throw new Error("Ответ не соответствует текущему недопущенному model contract.");
+    if (generation === state.modelGeneration) { state.model = profile; state.signal = signal; }
+  } finally { if (generation === state.modelGeneration) { state.modelLoading = false; renderModel(); } }
+}
 async function loadPrivate(append = false) {
   if (!state.user) return;
   const generation = state.generation;
@@ -274,11 +301,12 @@ $("close-auth").addEventListener("click", () => $("auth-dialog").close());
 $("auth-dialog").addEventListener("close", () => { $("password-input").value = ""; $("token-input").value = ""; });
 $("scenario-search").addEventListener("input", renderMonitor);
 for (const id of ["history-series", "history-start", "history-end", "history-revisions"]) $(id).addEventListener("change", () => run(loadHistory));
+$("model-horizon").addEventListener("change", () => run(loadModel));
 $("logout-button").addEventListener("click", () => run(async () => { if (!canLeaveReview()) return; await api("/api/v1/auth/logout", { method: "POST" }); clearPersonal(); accountChannel?.postMessage("changed"); state.view = "monitor"; render(); notice("Вы вышли из аккаунта."); }, $("logout-button")));
 $("more-reviews").addEventListener("click", () => run(async () => { await loadPrivate(true); render(); }, $("more-reviews")));
 $("refresh-button").addEventListener("click", () => run(async () => {
   if (!canLeaveReview()) return;
-  await checkConnection(); state.scenarios = (await api("/api/v1/demo/scenarios")).scenarios; await loadPrivate(); await loadMarket(); render(); notice("");
+  await checkConnection(); state.scenarios = (await api("/api/v1/demo/scenarios")).scenarios; await loadPrivate(); await loadMarket(); await loadModel(); render(); notice("");
 }, $("refresh-button")));
 $("auth-form").addEventListener("submit", (event) => {
   event.preventDefault(); const submit = $("auth-submit"); submit.disabled = true;
@@ -297,12 +325,13 @@ $("auth-form").addEventListener("submit", (event) => {
 });
 async function start() {
   updateIcons();
-  try {
-    state.scenarios = (await api("/api/v1/demo/scenarios")).scenarios;
-    await checkConnection();
-    await loadMarket();
-    try { state.user = await api("/api/v1/auth/me"); await loadPrivate(); } catch (error) { if (error.status !== 401) notice(error.message); }
-  } catch (error) { notice(error.message); }
+  const outcomes = await Promise.allSettled([
+    (async () => { state.scenarios = (await api("/api/v1/demo/scenarios")).scenarios; })(),
+    checkConnection(), loadMarket(), loadModel(),
+    (async () => { try { state.user = await api("/api/v1/auth/me"); await loadPrivate(); } catch (error) { if (error.status !== 401) throw error; } })(),
+  ]);
+  const failed = outcomes.find((result) => result.status === "rejected");
+  if (failed) notice(failed.reason.message);
   render();
 }
 async function syncIdentity() {

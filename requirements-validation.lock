@@ -1,0 +1,7 @@
+# Optional offline temporal checks, installed/tested in clean Python 3.14 venv.
+# Not required by the API; no estimator or model-fitting dependency is added.
+numpy==2.3.4
+pandas==2.3.3
+python-dateutil==4.0.0
+pytz==2026.6
+tzdata==2026.6

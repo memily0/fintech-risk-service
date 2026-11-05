@@ -6,6 +6,7 @@ __pycache__/
 .streamlit/
 .venv/
 .venv-v1/
+.venv-validation/
 /.arcshift-v1/
 *.egg-info/
 /build/

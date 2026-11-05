@@ -67,6 +67,10 @@ def check_once(database_path, extra_check=None):
         history = get("/api/v1/market/series/ru.fx.cbr.usd_rub.official/history?include_revisions=true")
         if history["total"] != 4 or history["observations"][-1]["observation"]["value"] != 81.2 or any(row["observation"]["published_at"] is not None for row in history["observations"]):
             raise RuntimeError("Parser history or unknown publication metadata changed")
+        profile = get("/api/v1/models/status")
+        current = get("/api/v1/signals/current")
+        if profile["accepted_artifact_available"] or current["signal"] is not None or current["state"] != "unavailable" or profile["data_snapshot_id"] != current["data_snapshot_id"]:
+            raise RuntimeError("Unapproved model unexpectedly served a prediction")
         get("/openapi.json")
         if extra_check is not None:
             extra_check(base)

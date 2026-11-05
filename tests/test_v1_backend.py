@@ -196,8 +196,12 @@ class APITests(unittest.TestCase):
         for method in ("post", "put", "patch", "delete"):
             response = getattr(self.client, method)("/api/v1/demo/scenarios/empty")
             self.assertEqual(response.status_code, 405)
-        for path in ("/data/final_dataset.csv", "/models/artifacts/crisis_logreg_30d.joblib", "/api/v1/users", "/api/v1/reviews", "/api/v1/signals/current"):
+        for path in ("/data/final_dataset.csv", "/models/artifacts/crisis_logreg_30d.joblib", "/api/v1/users", "/api/v1/reviews"):
             self.assertEqual(self.client.get(path).status_code, 404)
+        current = self.client.get("/api/v1/signals/current")
+        self.assertEqual(current.status_code, 200)
+        self.assertIsNone(current.json()["signal"])
+        self.assertEqual(current.json()["state"], "unavailable")
 
     def test_responses_are_noncacheable_and_synthetic(self):
         for path in ("/healthz", "/api/v1/demo/scenarios", "/not-found"):

@@ -1,6 +1,6 @@
 # Local Integration Workbench
 
-This is the I02-I05.1 local integration build, not production ArcShift V1.
+This is the I02-I05.2 local integration build, not production ArcShift V1.
 It has a FastAPI service, persistent SQLite fixtures, synthetic .test accounts,
 owner-scoped watchlists/reviews and a responsive browser workbench. It does not
 replace the existing Streamlit app, train models, fetch provider data, load old
@@ -191,6 +191,35 @@ formula prefixes. Notes render as text, never as HTML. The browser clears
 private state on logout, including same-origin tabs, and stores no private
 notes or credentials in localStorage. Watchlist replacement is last-write-wins;
 review notes have optimistic concurrency protection.
+
+## Model Boundary
+
+Mila's unchanged temporal core is integrated as optional `arcshift_model` from
+`models/validation`. [I05.2 details](../docs/v1_model_integration.md) distinguish
+temporal correctness from a trained/admitted model. The legacy trainer and
+weights remain unchanged and are never loaded by this API.
+
+- `GET /api/v1/models/status`: candidate task, raw-target input coverage,
+  unapproved horizons, calibration/artifact status and current blockers.
+- `GET /api/v1/signals/current?geography=RU&horizon_days=30`: always null signal
+  while admission is missing; unsupported tasks/countries/horizons are distinct.
+- The Model view uses `v1-model-readiness.1`, not a fitted-history proxy.
+
+API startup and status requests do not import pandas, NumPy, sklearn or joblib.
+Optional temporal checks use a separate environment, from the repository root:
+
+```sh
+python3 -m venv .venv-validation
+.venv-validation/bin/python -m pip install -r requirements-validation.lock
+.venv-validation/bin/python -m unittest discover -s tests/model_validation -q
+```
+
+The core suite deliberately excludes this optional subdirectory. Current
+counts are 149 core/data/API tests and 18 optional temporal tests. The temporal
+bridge accepts only synthetic standardized components with explicit snapshot,
+threshold, horizon and outcome as-of date. It prepares labels/train masks; it
+does not implement point-in-time feature construction, a frozen M04 run,
+calibration, model fitting, accepted artifacts or a training runner.
 
 ## Remaining Integration Work
 

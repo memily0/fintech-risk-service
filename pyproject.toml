@@ -14,12 +14,16 @@ dependencies = [
     "email-validator>=2,<3",
 ]
 
+[project.optional-dependencies]
+validation = ["pandas>=2.2,<3", "numpy>=2.3,<2.4"]
+
 [tool.setuptools]
-packages = ["arcshift_v1", "arcshift_data"]
+packages = ["arcshift_v1", "arcshift_data", "arcshift_model"]
 
 [tool.setuptools.package-dir]
 arcshift_v1 = "arcshift_v1"
 arcshift_data = "src/arcshift_data"
+arcshift_model = "models/validation"
 
 [tool.setuptools.package-data]
 arcshift_v1 = ["fixtures/*.json", "fixtures/market/*", "migrations/*.sql", "static/*"]
