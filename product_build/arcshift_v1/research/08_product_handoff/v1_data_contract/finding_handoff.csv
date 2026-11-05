@@ -1,0 +1,13 @@
+finding_id,candidate_action,synthetic_check,remaining_release_requirement,runtime_resolution
+DS01,Separate public model and downstream purposes in candidate profile,Candidate usage denied in all four modes,Source-specific MOEX entitlement and production enforcement,open
+DS02,Genuine KeyRate has separate ID and no refinancing fallback,Pre-2013 and refinancing metadata rejected,Real response mapping new feature version and evaluation,open
+DS03,Canonical national all-items monthly YoY dimensions,MoM regional weekly and occurrence selector rejected,Exact official resource and verified provider dimension codes,open
+DS04,Prospective receipt knowledge and publication unknown explicit,Old publication cannot backdate receipt and no fake CPI effective date,Real publication receipts and separate historical vintage protocol,open
+DS05,Offset-aware times and source-local active dates,US close unavailable at Moscow morning origin,Confirm provider timezone final session close and real as-of joins,open
+DS06,Legacy calendar windows documented as candidates,Contract retains calendar-versus-session distinction,Approved fill age calendar and derived-input implementation,open
+DS07,Select curve points using normalized maturity headers,Reordered headers work and missing duplicate headers rejected,Real HTML multirow header extraction units and adapter tests,open
+DS08,Explicit unresolved continuous futures resource,Gold provider roll and settlement remain open fields,Entitled provider exact contract roll and comparison,open
+DS09,Observation schema includes receipt snapshot hash and nullable publication,Schema cross-field unit time missingness and provenance-shape tests,Real immutable receipts hashes dedup revisions and stale checks,open
+DS10,Separate intended usage questions for CBR and curve,Candidate never grants public use,Specific usage basis or clarification and source admission decision,open
+DS11,No Yahoo or FRED automatic rights inheritance,Unknown resource substitution rejected and usage stays blocked,Owner or entitled-provider permissions and source equivalence,open
+DS12,Exact EIA Brent use question and source-specific hold,Brent identifier remains spot and rights unresolved,Specific series usage clarification release and revision metadata,open

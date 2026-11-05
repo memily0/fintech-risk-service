@@ -1,0 +1,132 @@
+{
+  "specification_version": 1,
+  "date": "2026-11-05",
+  "document_status": "draft_for_approval",
+  "decisions": [
+    {
+      "id": "D01",
+      "topic": "geography",
+      "status": "user_confirmed",
+      "value": {
+        "primary_country": "RU",
+        "international_role": "external_context_and_future_research",
+        "dedicated_Kazakhstan_scope": false,
+        "other_country_forecast_coverage_approved": false
+      },
+      "basis": "Latest user instruction: Russia is the foundation; other countries may be considered; do not include Kazakhstan as a dedicated direction"
+    },
+    {
+      "id": "D02",
+      "topic": "access",
+      "status": "user_confirmed",
+      "value": {
+        "mode": "public_self_registration",
+        "invitation_required": false,
+        "team_specific_workspaces_in_current_scope": false,
+        "team_adaptation": "future_direction"
+      },
+      "supersedes": "Earlier asynchronous reply selecting invitation-only access",
+      "basis": "Latest complete user reply explicitly selects public service with registration"
+    },
+    {
+      "id": "D03",
+      "topic": "budget",
+      "status": "categories_confirmed_amount_pending",
+      "value": {
+        "focus": ["server", "domain", "data_storage"],
+        "monthly_ceiling": null,
+        "currency": null,
+        "annual_domain_ceiling": null,
+        "paid_market_feed_approved": false,
+        "dataset_purchase_approved": false,
+        "purchases_authorized": false,
+        "unpriced_operational_needs": ["off_server_backups", "transactional_account_email"]
+      },
+      "basis": "User prefers costs only for server domain and possibly databases; no numeric ceiling or provider selected"
+    },
+    {
+      "id": "D04",
+      "topic": "primary_workflow",
+      "status": "proposed",
+      "value": "Individual analyst monitors Russian conditions and global factors; investigates warning; records review; exports snapshot report",
+      "buyer_or_decision_impact_validated": false,
+      "basis": "Qualitative evidence E06-E13 plus product design; not representative demand evidence"
+    },
+    {
+      "id": "D05",
+      "topic": "prediction_task_and_horizons",
+      "status": "pending",
+      "value": {
+        "task_candidate": "future_daily_composite_stress_proxy",
+        "legacy_candidate_horizons_days": [7, 30, 90],
+        "approved_horizons_days": [],
+        "source_and_target_definition_frozen": false,
+        "numeric_model_acceptance_criteria_approved": false
+      },
+      "basis": "Existing product implementation is a starting hypothesis with known maturity and unknown-target gaps"
+    },
+    {
+      "id": "D06",
+      "topic": "exact_sources_and_entitlements",
+      "status": "pending",
+      "value": "Admit exact Russian and global-context series within budget; document public display model use export and API rights separately",
+      "basis": "Existing 19 input columns are an inventory not a production license or approved feed"
+    },
+    {
+      "id": "D07",
+      "topic": "operational_targets",
+      "status": "proposed",
+      "value": "operational_targets.csv",
+      "confirmed_SLA": false,
+      "basis": "Engineering targets for discussion and later load/recovery tests; no measured production performance"
+    },
+    {
+      "id": "D08",
+      "topic": "responsible_owners",
+      "status": "pending",
+      "value": "Role-based implementation backlog; named owners and incident/support responsibility not assigned by this document"
+    },
+    {
+      "id": "D09",
+      "topic": "domain_and_hosting",
+      "status": "goal_confirmed_choices_pending",
+      "value": {
+        "domain": null,
+        "provider": null,
+        "region": null,
+        "infrastructure_created": false,
+        "deployment_authorized": false
+      }
+    },
+    {
+      "id": "D10",
+      "topic": "public_account_operations",
+      "status": "pending",
+      "value": "Select transactional mail and abuse controls; decide account-data retention deletion policy privacy documents and service owner before public launch",
+      "legal_compliance_conclusion": false
+    },
+    {
+      "id": "D11",
+      "topic": "detailed_feature_scope",
+      "status": "proposed",
+      "value": "feature_catalog.csv",
+      "human_approved": false
+    },
+    {
+      "id": "D12",
+      "topic": "runtime_stack",
+      "status": "proposed",
+      "value": "Reuse existing Python product; API PostgreSQL reverse proxy and VPS are candidates; retain current UI only if acceptance requirements pass",
+      "provider_or_tariff_selected": false
+    }
+  ],
+  "boundaries": {
+    "JST_commercial_permission": false,
+    "private_interview_public_release": false,
+    "all_research_completed": false,
+    "new_fit_authorized_by_specification": false,
+    "numeric_acquisition_authorized_by_specification": false,
+    "Git_transfer_authorized": false,
+    "production_release_approved": false
+  }
+}

@@ -1,0 +1,184 @@
+{
+  "contract_id": "arcshift_ru_context_candidate_v1",
+  "date": "2026-11-05",
+  "status": "candidate_not_admitted",
+  "human_scope_approved": false,
+  "primary_country": "RU",
+  "dedicated_Kazakhstan_scope": false,
+  "definition_version": "candidate.1",
+  "public_access": "public_self_registration",
+  "usage_modes": ["display", "model_use", "export", "api_redistribution"],
+  "rights_policy": "All modes denied until a separately recorded source-specific admission; structural validation never grants rights",
+  "production_admission": false,
+  "availability_policy": {
+    "scope": "prospective_receipt_based_only",
+    "earliest_knowledge_time": "max(received_at,published_at_when_known)",
+    "unknown_publication": "Keep null; do not backdate knowledge before receipt",
+    "effective_date_policy": "For active input require effective date and reference-period end no later than origin local date",
+    "historical_vintage_reconstruction": false,
+    "market_calendar_and_staleness_checks_required_separately": true,
+    "assumed_lags_authorized_for_live_records": false,
+    "UI_refresh_is_new_observation": false
+  },
+  "compatibility": {
+    "legacy_weights_reusable_without_new_evaluation": false,
+    "reason": "Genuine key rate replaces silent refinancing splice; CPI dimensions and availability must be verified; source and calendar changes alter inputs",
+    "legacy_artifacts_overwritten": false,
+    "incomplete_stress_components_may_be_silently_dropped": false,
+    "horizons_approved": []
+  },
+  "raw_series": [
+    {
+      "legacy_column": "gold", "series_id": "global.gold.futures_continuous",
+      "resource_id": "unresolved:gold_continuous_feed", "provider": null,
+      "units": "USD_per_troy_ounce", "timezone": "America/New_York",
+      "frequency": "daily_session_close", "binding_status": "instrument_roll_and_provider_pending",
+      "rights_group": "R06", "dimensions": {},
+      "forbidden_substitutions": ["spot_gold", "gold_ETF"],
+      "open_fields": ["exact_contract", "roll_rule", "close_vs_settlement", "provider", "session_timezone_confirmation"]
+    },
+    {
+      "legacy_column": "brent", "series_id": "global.oil.brent_spot_fob",
+      "resource_id": "eia:RBRTE:daily", "provider": "EIA",
+      "units": "USD_per_barrel", "timezone": "America/New_York",
+      "frequency": "daily_observation", "binding_status": "candidate_identity_known_release_policy_pending",
+      "rights_group": "R05", "dimensions": {},
+      "candidate_location": "https://www.eia.gov/dnav/pet/hist_xls/RBRTEd.xls",
+      "forbidden_substitutions": ["Brent_futures"],
+      "open_fields": ["specific_series_rights", "release_timezone_and_time", "revision_policy"]
+    },
+    {
+      "legacy_column": "usd_rub", "series_id": "ru.fx.cbr.usd_rub.official",
+      "resource_id": "cbr_xml:R01235", "provider": "CBR",
+      "units": "RUB_per_USD", "timezone": "Europe/Moscow",
+      "frequency": "official_daily_rate", "binding_status": "documented_candidate_not_probed",
+      "rights_group": "R01", "dimensions": {"currency_id": "R01235", "unit_nominal": 1},
+      "candidate_location": "https://www.cbr.ru/scripts/XML_dynamic.asp",
+      "value_rule": "Use VunitRate or Value divided by Nominal; reject conflicting fields or nonpositive nominal",
+      "forbidden_substitutions": ["intraday_spot", "exchange_future"],
+      "open_fields": ["usage_permission", "publication_metadata", "technical_probe"]
+    },
+    {
+      "legacy_column": "eur_rub", "series_id": "ru.fx.cbr.eur_rub.official",
+      "resource_id": "cbr_xml:R01239", "provider": "CBR",
+      "units": "RUB_per_EUR", "timezone": "Europe/Moscow",
+      "frequency": "official_daily_rate", "binding_status": "documented_candidate_not_probed",
+      "rights_group": "R01", "dimensions": {"currency_id": "R01239", "unit_nominal": 1},
+      "candidate_location": "https://www.cbr.ru/scripts/XML_dynamic.asp",
+      "value_rule": "Use VunitRate or Value divided by Nominal; reject conflicting fields or nonpositive nominal",
+      "forbidden_substitutions": ["intraday_spot", "exchange_future"],
+      "open_fields": ["usage_permission", "publication_metadata", "technical_probe"]
+    },
+    {
+      "legacy_column": "imoex", "series_id": "ru.equity.imoex.close",
+      "resource_id": "moex:stock:index:IMOEX:history:CLOSE", "provider": "MOEX_ISS",
+      "units": "index_points", "timezone": "Europe/Moscow",
+      "frequency": "daily_session_close", "binding_status": "documented_candidate_not_probed",
+      "rights_group": "R04", "dimensions": {"security": "IMOEX", "field": "CLOSE"},
+      "candidate_location": "https://iss.moex.com/iss/history/engines/stock/markets/index/securities/IMOEX.json",
+      "forbidden_substitutions": ["IMOEX_total_return", "ETF", "intraday_bar_as_daily_close"],
+      "open_fields": ["display_and_derived_permissions", "final_session_close_definition", "technical_probe"]
+    },
+    {
+      "legacy_column": "vix", "series_id": "global.volatility.cboe.vix.close",
+      "resource_id": "cboe:VIX:daily_close", "provider": "Cboe_candidate",
+      "units": "index_points", "timezone": "America/New_York",
+      "frequency": "daily_session_close", "binding_status": "history_page_found_equivalence_and_permission_pending",
+      "rights_group": "R07", "dimensions": {"index": "VIX", "field": "CLOSE"},
+      "candidate_location": "https://www.cboe.com/tradable-products/vix/vix-historical-data",
+      "forbidden_substitutions": ["VIX_future", "VIX_ETF", "FRED_as_license_bypass"],
+      "open_fields": ["usage_permission", "exact_download_resource", "legacy_equivalence", "close_timezone_confirmation"]
+    },
+    {
+      "legacy_column": "sp500", "series_id": "global.equity.sp500.price.close",
+      "resource_id": "unresolved:SP500_price_close_feed", "provider": null,
+      "units": "index_points", "timezone": "America/New_York",
+      "frequency": "daily_session_close", "binding_status": "provider_and_history_pending",
+      "rights_group": "R08", "dimensions": {"index": "SP500", "return_type": "price", "field": "CLOSE"},
+      "forbidden_substitutions": ["total_return", "ETF", "FRED_as_license_bypass"],
+      "open_fields": ["provider", "usage_permission", "history_depth", "close_timezone_confirmation"]
+    },
+    {
+      "legacy_column": "ofz_1y", "series_id": "ru.curve.cbr.zero_coupon.1y",
+      "resource_id": "cbr:zcyc_params:1Y", "provider": "CBR_curve",
+      "units": "percent_per_annum", "timezone": "Europe/Moscow",
+      "frequency": "daily_curve", "binding_status": "header_known_technical_probe_pending",
+      "rights_group": "R03", "dimensions": {"maturity_years": 1, "curve_type": "zero_coupon"},
+      "candidate_location": "https://www.cbr.ru/hd_base/zcyc_params/",
+      "value_rule": "Select by normalized maturity header 1 year not fixed cell index",
+      "open_fields": ["usage_and_origin_permissions", "publication_time", "technical_probe"]
+    },
+    {
+      "legacy_column": "ofz_2y", "series_id": "ru.curve.cbr.zero_coupon.2y",
+      "resource_id": "cbr:zcyc_params:2Y", "provider": "CBR_curve",
+      "units": "percent_per_annum", "timezone": "Europe/Moscow",
+      "frequency": "daily_curve", "binding_status": "header_known_technical_probe_pending",
+      "rights_group": "R03", "dimensions": {"maturity_years": 2, "curve_type": "zero_coupon"},
+      "candidate_location": "https://www.cbr.ru/hd_base/zcyc_params/",
+      "value_rule": "Select by normalized maturity header 2 years not fixed cell index",
+      "open_fields": ["usage_and_origin_permissions", "publication_time", "technical_probe"]
+    },
+    {
+      "legacy_column": "ofz_5y", "series_id": "ru.curve.cbr.zero_coupon.5y",
+      "resource_id": "cbr:zcyc_params:5Y", "provider": "CBR_curve",
+      "units": "percent_per_annum", "timezone": "Europe/Moscow",
+      "frequency": "daily_curve", "binding_status": "header_known_technical_probe_pending",
+      "rights_group": "R03", "dimensions": {"maturity_years": 5, "curve_type": "zero_coupon"},
+      "candidate_location": "https://www.cbr.ru/hd_base/zcyc_params/",
+      "value_rule": "Select by normalized maturity header 5 years not fixed cell index",
+      "open_fields": ["usage_and_origin_permissions", "publication_time", "technical_probe"]
+    },
+    {
+      "legacy_column": "ofz_10y", "series_id": "ru.curve.cbr.zero_coupon.10y",
+      "resource_id": "cbr:zcyc_params:10Y", "provider": "CBR_curve",
+      "units": "percent_per_annum", "timezone": "Europe/Moscow",
+      "frequency": "daily_curve", "binding_status": "header_known_technical_probe_pending",
+      "rights_group": "R03", "dimensions": {"maturity_years": 10, "curve_type": "zero_coupon"},
+      "candidate_location": "https://www.cbr.ru/hd_base/zcyc_params/",
+      "value_rule": "Select by normalized maturity header 10 years not fixed cell index",
+      "open_fields": ["usage_and_origin_permissions", "publication_time", "technical_probe"]
+    },
+    {
+      "legacy_column": "key_rate", "series_id": "ru.policy.cbr.key_rate",
+      "resource_id": "cbr:DailyInfo:KeyRate", "provider": "CBR",
+      "units": "percent_per_annum", "timezone": "Europe/Moscow",
+      "frequency": "policy_effective_daily", "binding_status": "documented_candidate_not_probed",
+      "rights_group": "R02", "dimensions": {"rate_type": "key_rate"},
+      "candidate_location": "https://www.cbr.ru/DailyInfoWebServ/DailyInfo.asmx",
+      "method": "KeyRate", "history_not_before": "2013-09-17",
+      "refinancing_fallback_allowed": false,
+      "forbidden_substitutions": ["refinancing_rate"],
+      "open_fields": ["usage_permission", "announcement_vs_effective_time", "technical_probe"]
+    },
+    {
+      "legacy_column": "inflation", "series_id": "ru.prices.rosstat.cpi_yoy",
+      "resource_id": "rosstat:11521100300010200001:selection_pending", "provider": "Rosstat_candidate",
+      "units": "percent_YoY", "timezone": "Europe/Moscow",
+      "frequency": "monthly_release", "binding_status": "indicator_found_resource_and_dimension_codes_pending",
+      "rights_group": "R09",
+      "dimensions": {"territory": "RU_national", "coverage": "all_goods_and_services", "comparison": "same_month_previous_year", "frequency": "monthly"},
+      "indicator_id": "11521100300010200001",
+      "secondary_indicator_candidate": "fedstat:31074",
+      "dimension_codes_verified": false,
+      "provider_dimension_codes": null,
+      "download_resource_url": null,
+      "value_rule": "Normalize verified CPI index_percent minus 100; never choose by row position",
+      "publication_rule": "Actual publication when verified; otherwise null and receipt-based availability",
+      "forbidden_substitutions": ["MoM", "YTD", "weekly_CPI", "regional_CPI", "second_monthly_row", "NSEDC_automatic_equivalence"],
+      "open_fields": ["exact_resource", "dimension_codes", "applicable_open_terms", "release_calendar", "technical_probe"]
+    }
+  ],
+  "derived_series": [
+    {"legacy_column": "ofz_spread_10_2", "parents": ["ofz_10y", "ofz_2y"], "formula": "ofz_10y - ofz_2y", "units": "percentage_points", "calendar": "aligned_curve_dates", "minimum_parent_count": 2},
+    {"legacy_column": "usd_volatility", "parents": ["usd_rub"], "formula": "sample_std(simple_returns; ddof=1)", "units": "return_fraction_std", "window_rows": 30, "calendar": "legacy_calendar_grid_candidate_not_session_grid", "annualized": false, "fill_policy_approved": false},
+    {"legacy_column": "imoex_volatility", "parents": ["imoex"], "formula": "sample_std(simple_returns; ddof=1)", "units": "return_fraction_std", "window_rows": 30, "calendar": "legacy_calendar_grid_candidate_not_session_grid", "annualized": false, "fill_policy_approved": false},
+    {"legacy_column": "imoex_drawdown", "parents": ["imoex"], "formula": "imoex / cumulative_max(imoex) - 1", "units": "return_fraction", "history_anchor": "explicit_dataset_start", "history_anchor_approved": false},
+    {"legacy_column": "imoex_zscore", "parents": ["imoex"], "formula": "(level - rolling_mean) / rolling_sample_std", "units": "std_units", "window_rows": 252, "calendar": "legacy_calendar_grid_candidate_not_session_grid", "includes_current_point": true, "zero_variance_action": "unavailable"},
+    {"legacy_column": "real_key_rate", "parents": ["key_rate", "inflation"], "formula": "key_rate - released_trailing_CPI_YoY", "units": "percentage_points", "interpretation": "descriptive_ex_post_proxy_not_expected_real_rate", "minimum_parent_count": 2}
+  ],
+  "unresolved_before_numeric_probe": ["exact_CPI_resource_and_dimensions", "per_provider_finite_request_plan", "permitted_technical_acquisition_scope"],
+  "unresolved_before_production": ["source_specific_rights", "technical_verification", "calendar_and_freshness_policies", "task_target_and_horizons", "new_model_evaluation", "full_release_acceptance"],
+  "numeric_probe_executed": false,
+  "production_integration_executed": false,
+  "external_letters_sent": false
+}

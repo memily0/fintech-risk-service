@@ -1,0 +1,13 @@
+id,stage,work_package,deliverable,depends_on,owner_role,owner_assignment,status
+V1-T01,V1-00,Зафиксировать конечный scope и эксплуатационные решения,Approved feature list target horizons NFR owners and budget ceilings,none,product_owner_and_team,not_assigned,draft_prepared_approval_pending
+V1-T02,V1-01,Допустить российские источники и внешние факторы,Exact series contract rights matrix freshness calendars history gaps request and cost budgets,V1-T01,data_and_source_review,not_assigned,candidate_contract_and_synthetic_checks_done_exact_bindings_and_admission_pending
+V1-T03,V1-01 V1-03,Подготовить воспроизводимую основу и контракты,Dependency lock config migrations observation feature signal and personal-state schemas,V1-T01,backend_integration,not_assigned,not_started
+V1-T04,V1-01,Реализовать live pipeline,Adapters scheduler atomic publication history revisions and failure tests,V1-T02 V1-T03,data_operations,not_assigned,not_started
+V1-T05,V1-02,Исправить target и заморозить validation plan,Maturity warm-up calendar tests comparator calibration thresholds and finite run budget,V1-T02 V1-T03,model_validation,not_assigned,not_started
+V1-T06,V1-02,Выполнить разрешённую оценку и допустить candidate,New versioned results full warning record model card and artifact decision,V1-T05,model_validation_independent_check,not_assigned,requires_separate_run_decision
+V1-T07,V1-03,Реализовать публичные аккаунты API и личное состояние,Verification recovery isolation watchlists reviews reports and rate-limit tests,V1-T03,backend_security,not_assigned,not_started
+V1-T08,V1-04,Собрать рабочий интерфейс и отчёты,Complete overview warning investigation review PDF CSV JSON and responsive states,V1-T03,frontend_workflow,not_assigned,not_started
+V1-T09,V1-05,Подготовить эксплуатацию и public-launch policies,Monitoring secrets email retention privacy support backup restore and deployment runbooks,V1-T02 V1-T03,operations_security_service_owner,not_assigned,not_started
+V1-T10,V1-05,Проверить интегрированный staging,Exact release candidate HTTPS jobs login snapshots load and resilience results,V1-T04 V1-T06 V1-T07 V1-T08 V1-T09,release_integration,not_assigned,not_started
+V1-T11,V1-06,Провести сквозную приёмку,Executed acceptance scenarios restore rollback and closed release findings,V1-T10,acceptance_reviewer_and_product_owner,not_assigned,not_started
+V1-T12,V1-06,Выпустить на домен и передать сопровождение,Separately authorized production deployment smoke tests support and renewal ownership,V1-T11,operations_and_service_owner,not_assigned,requires_separate_deployment_decision

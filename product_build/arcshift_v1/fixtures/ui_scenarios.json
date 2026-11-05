@@ -1,0 +1,15 @@
+{
+  "fixture_version": "v1-handoff.1",
+  "synthetic": true,
+  "not_training_or_provider_data": true,
+  "scenarios": [
+    {"id": "loading", "state": "loading", "synthetic": true, "signal": null, "message": "Получение опубликованного snapshot"},
+    {"id": "empty", "state": "empty", "synthetic": true, "signal": null, "message": "Нет доступной истории"},
+    {"id": "stale", "state": "stale", "synthetic": true, "signal": null, "message": "Данные устарели; текущий прогноз недоступен"},
+    {"id": "unsupported", "state": "unsupported", "synthetic": true, "signal": null, "message": "Задача или горизонт не поддерживаются"},
+    {"id": "error", "state": "error", "synthetic": true, "signal": null, "message": "Источник временно недоступен"},
+    {"id": "historical_demo", "state": "historical_demo", "synthetic": true,
+     "signal": {"task_id": "synthetic:future_stress_proxy", "horizon_value": 30, "horizon_unit": "calendar_days", "score": 0.35, "score_kind": "synthetic_uncalibrated_score", "calibration_status": "not_validated", "validity_status": "historical_demo", "snapshot_id": "synthetic-ui-001", "model_version": "synthetic-no-fitted-model", "forecast_origin": "2026-11-05T09:00:00+03:00", "information_as_of": "2026-11-05T08:00:00+03:00", "drivers": []},
+     "message": "Синтетический пример, не прогноз текущего риска"}
+  ]
+}

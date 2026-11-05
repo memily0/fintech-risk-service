@@ -1,0 +1,23 @@
+id,stage,gate,evidence_required,status
+G01,0,Finite product scope approved,User workflow markets horizons roles and exclusions accepted,pending
+G02,0,Operational targets approved,Concurrency update latency source-age policies RPO RTO and support owner defined,pending
+G03,1,Source rights and coverage cleared,Exact provider series IDs display non-display redistribution and environment access documented,pending
+G04,2,Reproducible code and environment,Dependency lock configuration and clean local startup verified,pending
+G05,3,Continuous data ingest works,New approved observations receipts revisions and atomic snapshots verified,pending
+G06,3,Ingest failures handled,Rate limits retries duplicates out-of-order and outage tests pass,pending
+G07,4,Target and split validity,Maturity warm-up calendar and train-only transformations tests pass,pending
+G08,4,Model operating acceptance,Predefined ranking calibration warning burden misses lead and failure criteria evaluated,pending
+G09,4,Approved versioned model artifact,Artifact hash input schema task coverage and rollback version recorded,pending
+G10,5,Service contract stable,API schemas errors authorization and snapshot consistency tested,pending
+G11,6,Analyst workflow complete,Overview to alert investigation review report and export passes user scenarios,pending
+G12,6,UI freshness and uncertainty honest,Stale unavailable delayed fitted OOS and live states distinguishable,pending
+G13,7,Authentication and data isolation,Session and cross-user or cross-workspace negative tests pass,pending
+G14,7,Secrets and logs protected,No credentials in image frontend logs exports or public paths,pending
+G15,7,Monitoring actionable,Outage stale job failure resource and backup alerts reach the responsible person,pending
+G16,8,Staging candidate validated,HTTPS WebSocket jobs access migrations and restart tested on server,pending
+G17,9,Load and resilience accepted,Measured concurrency latency resource use and recovery meet approved targets,pending
+G18,9,Backup restore verified,Encrypted off-server backup restored into clean environment within approved RPO RTO,pending
+G19,9,Release-blocking findings closed,Exact release acceptance record and remaining nonblocking issues documented,pending
+G20,10,Production domain and HTTPS verified,DNS certificate redirect renewability and protected public routes checked,pending
+G21,10,Rollback drill completed,Previous code model config and schema compatibility verified without blind data loss,pending
+G22,11,Support and maintenance assigned,Incident ownership updates access review retention subscription renewal and restore drills scheduled,pending

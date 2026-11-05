@@ -1,0 +1,265 @@
+{
+  "snapshot_date": "2026-11-05",
+  "repository": "memily0/fintech-risk-service",
+  "repository_visibility": "PUBLIC",
+  "branch": "research-to-product/v1-parallel-2026-11-05",
+  "base_branch": "feature/crisis-model-mvp",
+  "base_commit": "4160152be961664112eb8102e332921bb9e727a9",
+  "base_tree": "8d806997e1a4512bf4736b33eb526cf0ef121583",
+  "package_directory": "product_build/arcshift_v1",
+  "selected_package_publication_authorized_by_latest_user_request": true,
+  "entire_private_research_archive_published": false,
+  "raw_interviews_or_JST_data_published": false,
+  "product_release_approved": false,
+  "product_worktree_changed": false,
+  "remote_main_updated": false,
+  "copied_snapshot_files": [
+    {
+      "packaged_path": "research/08_product_handoff/arcshift_v1_end_to_end_plan.md",
+      "source_sha256": "435bde4854a5708cfa7df9b1e62f3315e452bd4b49e5c7d344b20df7ac0ad85b",
+      "packaged_sha256": "435bde4854a5708cfa7df9b1e62f3315e452bd4b49e5c7d344b20df7ac0ad85b",
+      "transform": "selected_snapshot"
+    },
+    {
+      "packaged_path": "research/08_product_handoff/arcshift_v1_release_plan.md",
+      "source_sha256": "417b1ba0d97e149268b44410022b2c1fde7c1575a60e24bb303e931d41cf40e7",
+      "packaged_sha256": "417b1ba0d97e149268b44410022b2c1fde7c1575a60e24bb303e931d41cf40e7",
+      "transform": "selected_snapshot"
+    },
+    {
+      "packaged_path": "research/08_product_handoff/arcshift_v1_release_scope.json",
+      "source_sha256": "92d2c414a2620e53e21cc39bccf628aeec8b9d68d51d6a0dfd1f7fc076ca872f",
+      "packaged_sha256": "92d2c414a2620e53e21cc39bccf628aeec8b9d68d51d6a0dfd1f7fc076ca872f",
+      "transform": "selected_snapshot"
+    },
+    {
+      "packaged_path": "research/08_product_handoff/arcshift_v1_release_checklist.csv",
+      "source_sha256": "74406488d9c448243fe81777893ba7f653d818a63db9d40397399564db7821a5",
+      "packaged_sha256": "74406488d9c448243fe81777893ba7f653d818a63db9d40397399564db7821a5",
+      "transform": "selected_snapshot"
+    },
+    {
+      "packaged_path": "research/08_product_handoff/arcshift_v1_live_data_plan.md",
+      "source_sha256": "71a5b9c5f7e1d9195aeb1909668e4e99084b452b84319b4e8e2363bf04901b6d",
+      "packaged_sha256": "71a5b9c5f7e1d9195aeb1909668e4e99084b452b84319b4e8e2363bf04901b6d",
+      "transform": "selected_snapshot"
+    },
+    {
+      "packaged_path": "research/08_product_handoff/v1_stage_tracker.md",
+      "source_sha256": "2d527cb2871782e1594d63ce9d31932667a85a694c65f96bdd33ad6db01cd6a2",
+      "packaged_sha256": "2d527cb2871782e1594d63ce9d31932667a85a694c65f96bdd33ad6db01cd6a2",
+      "transform": "selected_snapshot"
+    },
+    {
+      "packaged_path": "research/08_product_handoff/v1_product_specification/README.md",
+      "source_sha256": "51722f8ef5f8f1283fd9cd8d82527b3622cd5e426d908e56abe86b123b9d2865",
+      "packaged_sha256": "51722f8ef5f8f1283fd9cd8d82527b3622cd5e426d908e56abe86b123b9d2865",
+      "transform": "selected_snapshot"
+    },
+    {
+      "packaged_path": "research/08_product_handoff/v1_product_specification/decision_register.json",
+      "source_sha256": "008d40816945885f4e6154c95e14da79d6e5e669214b6158f07e905bbe1e4dde",
+      "packaged_sha256": "008d40816945885f4e6154c95e14da79d6e5e669214b6158f07e905bbe1e4dde",
+      "transform": "selected_snapshot"
+    },
+    {
+      "packaged_path": "research/08_product_handoff/v1_product_specification/feature_catalog.csv",
+      "source_sha256": "2d6cb61a3b44ceb13697c235c7454fe38d15674791423f4f92b8a6cb401b149d",
+      "packaged_sha256": "2d6cb61a3b44ceb13697c235c7454fe38d15674791423f4f92b8a6cb401b149d",
+      "transform": "selected_snapshot"
+    },
+    {
+      "packaged_path": "research/08_product_handoff/v1_product_specification/acceptance_scenarios.csv",
+      "source_sha256": "1502dd743b901f00300eb985802f99a9e4620baba891cf02fd277adff3143204",
+      "packaged_sha256": "1502dd743b901f00300eb985802f99a9e4620baba891cf02fd277adff3143204",
+      "transform": "selected_snapshot"
+    },
+    {
+      "packaged_path": "research/08_product_handoff/v1_product_specification/operational_targets.csv",
+      "source_sha256": "403361ddedbd182d5727ae045276e1de5cc58e4c3159290f1a7f6ac24543fb5c",
+      "packaged_sha256": "403361ddedbd182d5727ae045276e1de5cc58e4c3159290f1a7f6ac24543fb5c",
+      "transform": "selected_snapshot"
+    },
+    {
+      "packaged_path": "research/08_product_handoff/v1_product_specification/implementation_backlog.csv",
+      "source_sha256": "28c81ebcf0e577019b78554f962db6141b0f27f895c8d2bf898bbbcc6349efde",
+      "packaged_sha256": "28c81ebcf0e577019b78554f962db6141b0f27f895c8d2bf898bbbcc6349efde",
+      "transform": "selected_snapshot"
+    },
+    {
+      "packaged_path": "research/08_product_handoff/v1_product_specification/verification.md",
+      "source_sha256": "9320037a0a983c97f79a27cf7b287fcc849fbd729c0e925bfc25aa2482030b6c",
+      "packaged_sha256": "9320037a0a983c97f79a27cf7b287fcc849fbd729c0e925bfc25aa2482030b6c",
+      "transform": "selected_snapshot"
+    },
+    {
+      "packaged_path": "research/08_product_handoff/v1_source_audit/README.md",
+      "source_sha256": "8e8387add528fe9bc82466c50f284f239fc122b6aeaea1ce8fa9dd2d2faec7b6",
+      "packaged_sha256": "8e8387add528fe9bc82466c50f284f239fc122b6aeaea1ce8fa9dd2d2faec7b6",
+      "transform": "selected_snapshot"
+    },
+    {
+      "packaged_path": "research/08_product_handoff/v1_source_audit/series_catalog.csv",
+      "source_sha256": "19c43f5dd7205c5422a7b103634d3a9059c6dfb71d936dce3cfbd94e820c6b34",
+      "packaged_sha256": "19c43f5dd7205c5422a7b103634d3a9059c6dfb71d936dce3cfbd94e820c6b34",
+      "transform": "selected_snapshot"
+    },
+    {
+      "packaged_path": "research/08_product_handoff/v1_source_audit/rights_matrix.csv",
+      "source_sha256": "0bbc99c838286348dcb84e1e9f6f20f754b6c85d99564ccb2146dafd32dbf122",
+      "packaged_sha256": "0bbc99c838286348dcb84e1e9f6f20f754b6c85d99564ccb2146dafd32dbf122",
+      "transform": "selected_snapshot"
+    },
+    {
+      "packaged_path": "research/08_product_handoff/v1_source_audit/source_evidence.csv",
+      "source_sha256": "dc8c309ff2106c608cd2da8016db2f18e04fd1352731cf93a4020f6eea1d4900",
+      "packaged_sha256": "dc8c309ff2106c608cd2da8016db2f18e04fd1352731cf93a4020f6eea1d4900",
+      "transform": "selected_snapshot"
+    },
+    {
+      "packaged_path": "research/08_product_handoff/v1_source_audit/findings.csv",
+      "source_sha256": "cced3b994c83d6828f549999e0736eda46d8af3a455075ed0ed3e5f9d258191e",
+      "packaged_sha256": "cced3b994c83d6828f549999e0736eda46d8af3a455075ed0ed3e5f9d258191e",
+      "transform": "selected_snapshot"
+    },
+    {
+      "packaged_path": "research/08_product_handoff/v1_source_audit/local_snapshot_inventory.csv",
+      "source_sha256": "4e83b8a6293cf68fcad58b4a37fb9428fb3bb2ecde601a22ce5b5dab28808a95",
+      "packaged_sha256": "4e83b8a6293cf68fcad58b4a37fb9428fb3bb2ecde601a22ce5b5dab28808a95",
+      "transform": "selected_snapshot"
+    },
+    {
+      "packaged_path": "research/08_product_handoff/v1_source_audit/local_input_manifest.csv",
+      "source_sha256": "8793bc9636c14b624c277a2d9e7b4320d4753265f8ff8b995119207f655bbbb1",
+      "packaged_sha256": "8793bc9636c14b624c277a2d9e7b4320d4753265f8ff8b995119207f655bbbb1",
+      "transform": "selected_snapshot"
+    },
+    {
+      "packaged_path": "research/08_product_handoff/v1_source_audit/audit_status.json",
+      "source_sha256": "6c4b22c22d9515986d2e609ad3d30dcb055b32758073931149038d3c2af99aaf",
+      "packaged_sha256": "6c4b22c22d9515986d2e609ad3d30dcb055b32758073931149038d3c2af99aaf",
+      "transform": "selected_snapshot"
+    },
+    {
+      "packaged_path": "research/08_product_handoff/v1_source_audit/verification.md",
+      "source_sha256": "68724faba0d4f5269b1eb9dcc58c7b1a3d9377b59bc27c0ec793d7dbc4e32063",
+      "packaged_sha256": "68724faba0d4f5269b1eb9dcc58c7b1a3d9377b59bc27c0ec793d7dbc4e32063",
+      "transform": "selected_snapshot"
+    },
+    {
+      "packaged_path": "research/08_product_handoff/v1_data_contract/README.md",
+      "source_sha256": "789c992285cc3dd3469d1f73e6f4ebdb08629064499d7992f988abb394c6df49",
+      "packaged_sha256": "789c992285cc3dd3469d1f73e6f4ebdb08629064499d7992f988abb394c6df49",
+      "transform": "selected_snapshot"
+    },
+    {
+      "packaged_path": "research/08_product_handoff/v1_data_contract/candidate_contract.json",
+      "source_sha256": "2c6df501f67ebaec8f7c7f427603b20f055c58b7bd66aa41c745271c2869f3bf",
+      "packaged_sha256": "2c6df501f67ebaec8f7c7f427603b20f055c58b7bd66aa41c745271c2869f3bf",
+      "transform": "selected_snapshot"
+    },
+    {
+      "packaged_path": "research/08_product_handoff/v1_data_contract/observation.schema.json",
+      "source_sha256": "f2ac0a5b7ba814bdbcfc3ffe2b1c0ed8b58bc5ab49cee1feaf9ed5a6b8ae6496",
+      "packaged_sha256": "f2ac0a5b7ba814bdbcfc3ffe2b1c0ed8b58bc5ab49cee1feaf9ed5a6b8ae6496",
+      "transform": "selected_snapshot"
+    },
+    {
+      "packaged_path": "research/08_product_handoff/v1_data_contract/rights_questions.md",
+      "source_sha256": "73ba1be5e263ad2114d7a0597173d90136a99b916674137762eb35e267731d5a",
+      "packaged_sha256": "73ba1be5e263ad2114d7a0597173d90136a99b916674137762eb35e267731d5a",
+      "transform": "selected_snapshot"
+    },
+    {
+      "packaged_path": "research/08_product_handoff/v1_data_contract/finding_handoff.csv",
+      "source_sha256": "7d5d837b910f5cf9a5b114a7cfaad232aee09fe98e509e397f73824f2747f84b",
+      "packaged_sha256": "7d5d837b910f5cf9a5b114a7cfaad232aee09fe98e509e397f73824f2747f84b",
+      "transform": "selected_snapshot"
+    },
+    {
+      "packaged_path": "research/08_product_handoff/v1_data_contract/step_status.json",
+      "source_sha256": "5df5285e6ef0e749290b1dad8366b1e08250bb680eb63f5e96dc1cd806016917",
+      "packaged_sha256": "5df5285e6ef0e749290b1dad8366b1e08250bb680eb63f5e96dc1cd806016917",
+      "transform": "selected_snapshot"
+    },
+    {
+      "packaged_path": "research/08_product_handoff/v1_data_contract/verification.md",
+      "source_sha256": "3ea46a12a0616b1cc4f86ba040cb3f9b03daf7e13f2ee048e773900fc43ae281",
+      "packaged_sha256": "3ea46a12a0616b1cc4f86ba040cb3f9b03daf7e13f2ee048e773900fc43ae281",
+      "transform": "selected_snapshot"
+    },
+    {
+      "packaged_path": "research/08_product_handoff/cycle_1_closeout_v1/evidence_to_product.csv",
+      "source_sha256": "29e1b979bc015a057bd3d3cf5adf1f653e25d01bbee031fe9fed67036740e25d",
+      "packaged_sha256": "076a7122f97805160681967d2b64b5c1bbf46f60277112d2f47f4898db883dbb",
+      "transform": "sanitized_or_legacy_warning"
+    },
+    {
+      "packaged_path": "research/08_product_handoff/cycle_1_closeout_v1/product_backlog.csv",
+      "source_sha256": "5c617f97864a6605fb33ffb3d710fda12ea5af077b6811f55cc70cabb4d1da4d",
+      "packaged_sha256": "5c617f97864a6605fb33ffb3d710fda12ea5af077b6811f55cc70cabb4d1da4d",
+      "transform": "selected_snapshot"
+    },
+    {
+      "packaged_path": "research/08_product_handoff/cycle_1_closeout_v1/product_architecture.md",
+      "source_sha256": "441b6a9e960f2cf378000e71d659c362c3394a8e2d20960ea4a373d5f90e8362",
+      "packaged_sha256": "441b6a9e960f2cf378000e71d659c362c3394a8e2d20960ea4a373d5f90e8362",
+      "transform": "selected_snapshot"
+    },
+    {
+      "packaged_path": "research/tools/release/v1_data_contract.py",
+      "source_sha256": "6976bf63ba9d51c1f0c091e12727ec56cfa8583793b129f1cca5f34126b06247",
+      "packaged_sha256": "6976bf63ba9d51c1f0c091e12727ec56cfa8583793b129f1cca5f34126b06247",
+      "transform": "selected_snapshot"
+    },
+    {
+      "packaged_path": "research/tools/release/test_v1_data_contract.py",
+      "source_sha256": "a259673d3dc9632dc17bcbc71b7a26918899c14790861dcce6fe12be95842335",
+      "packaged_sha256": "a259673d3dc9632dc17bcbc71b7a26918899c14790861dcce6fe12be95842335",
+      "transform": "selected_snapshot"
+    },
+    {
+      "packaged_path": "legacy_reference/model_card.md",
+      "source_sha256": "295089cb0f8438661f71a677bdc320d9428e5da5432ef211e6a157bb480bb03f",
+      "packaged_sha256": "d23f85cf9d5c791ef3d9c41d02db4ba6ec71a2bf61c751eb9c2734c41b107acb",
+      "transform": "sanitized_or_legacy_warning"
+    },
+    {
+      "packaged_path": "legacy_reference/validation_report.md",
+      "source_sha256": "bcabfcd4ac2a155ceacb3dae7300df94ba6a1efe81d1a320c575b27fe68afe00",
+      "packaged_sha256": "c741d2b97a3767713d44bd6da3cf5e8b49a9217dbc7fe0a5717f6897759ec924",
+      "transform": "sanitized_or_legacy_warning"
+    },
+    {
+      "packaged_path": "legacy_reference/product_methodology.md",
+      "source_sha256": "87758bae0c087a21a6fa6cd1eac65e5d2d4c24322b3cf0eb540037a411403a63",
+      "packaged_sha256": "196adad6ce2e4c34dc2ebcf322f0a8b5cc299aa9a325c6b5f6e6b8266dbe4757",
+      "transform": "sanitized_or_legacy_warning"
+    }
+  ],
+  "existing_product_code": [
+    {
+      "repository_path": "app/dashboard.py",
+      "sha256": "e4bbd8349e37d970cc5a75d22fc02d909ee0c037acf85a97599e3a4ff877e92e",
+      "source": "already_public_base_commit"
+    },
+    {
+      "repository_path": "scripts/build_final_dataset.py",
+      "sha256": "a5781f0f536c41da48b0048b0d47e9c7330985db5e3b879e1dee6051d339115c",
+      "source": "already_public_base_commit"
+    },
+    {
+      "repository_path": "scripts/train_crisis_model.py",
+      "sha256": "56c71d481ba8c17654364e5b48e2085161f4e0fc6bfd54197873b8bf6cb108f6",
+      "source": "already_public_base_commit"
+    },
+    {
+      "repository_path": "requirements.txt",
+      "sha256": "602777770dd847cd654836c2b9f7db62962a63b8b38cbbc016bf3ede2246fa8e",
+      "source": "already_public_base_commit"
+    }
+  ],
+  "inherited_data_and_models_are_not_newly_admitted": true,
+  "team_assignments": "proposed_for_confirmation",
+  "new_model_fits_executed": false
+}

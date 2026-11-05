@@ -1,0 +1,13 @@
+id,metric,proposed_target,measurement_context,approval,status,acceptance_ids
+N01,UI refresh,30 seconds,Активный экран опрашивает серверный snapshot без provider запроса на пользователя,proposed,not_measured,A13 A16
+N02,Snapshot publication to UI,At most 60 seconds,От принятия нового snapshot до активного экрана без включения задержки провайдера,proposed,not_measured,A13
+N03,Read API latency,p95 at most 2 seconds,Тест 10 одновременных сессий 30 минут с заранее фиксированным history fixture и query mix,proposed,not_measured,A29 A34
+N04,First useful screen,At most 5 seconds,Тёплый сервер и указанный в test plan browser network history size и 10 сессий,proposed,not_measured,A34 A39
+N05,Per-series freshness,To be defined per source,Calendar publication schedule latency mode revision policy и unknown timestamps различаются,decision_pending,not_measured,A10 A11 A12
+N06,Daily inference completion,At most 15 minutes after approved feature snapshot,Только принятые закрытые daily inputs без включения времени публикации источников,proposed,not_measured,A18 A20
+N07,Recovery point objective,At most 24 hours of data loss,Предложение включает заметки и настройки и требует отдельного согласия владельца на допустимую потерю,proposed,not_measured,A35
+N08,Recovery time objective,At most 4 hours,От объявления восстановления до проверенного минимального рабочего сервиса в чистом окружении,proposed,not_measured,A35
+N09,Availability objective,Not selected,Нужны окно измерения maintenance policy бюджет и ответственный до production,decision_pending,not_measured,A33 A36
+N10,Supported layouts,375 768 1440 px and 200 percent text zoom,Клавиатурный доступ fit текста и отсутствие перекрытий проверяются по основному workflow,proposed,not_measured,A39
+N11,Request and storage budgets,To be defined per provider and account operation,Ограничены retries login email API exports report jobs retention и размер очередей,decision_pending,not_measured,A03 A15 A16 A29 A34
+N12,Private-object isolation,Zero successful unauthorized reads or writes in defined test suite,UI API report URLs session expiry cache operator permissions и exports,proposed,not_measured,A04 A27 A29 A31

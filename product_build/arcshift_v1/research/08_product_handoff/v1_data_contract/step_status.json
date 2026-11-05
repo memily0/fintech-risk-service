@@ -1,0 +1,23 @@
+{
+  "date": "2026-11-05",
+  "stage": "V1-01.2",
+  "status": "candidate_contract_and_offline_checks_prepared_external_bindings_open",
+  "substep_fully_closed": false,
+  "candidate_contract_prepared": true,
+  "normalization_prototype_implemented": true,
+  "normalization_prototype_scope": "Canonical synthetic records and headers; not provider-specific extraction or production enforcement",
+  "CPI_indicator_candidate_identified": true,
+  "CPI_exact_resource_and_dimension_codes_verified": false,
+  "source_usage_admission_complete": false,
+  "production_admitted_series": 0,
+  "previous_source_findings_runtime_closed": 0,
+  "prototype_uses_jsonschema_installed_version": "4.26.0",
+  "new_dependency_installed": false,
+  "new_external_outreach_sent": false,
+  "numeric_provider_probe_executed": false,
+  "new_training_executed": false,
+  "product_code_or_weights_changed": false,
+  "Git_transfer_authorized": false,
+  "deployment_authorized": false,
+  "next_action": "Resolve exact CPI binding and source-specific usage basis; then freeze a finite technical probe plan without running the legacy bulk builder"
+}

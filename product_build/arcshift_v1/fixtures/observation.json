@@ -1,0 +1,20 @@
+{
+  "schema_version": "candidate.1",
+  "series_id": "ru.fx.cbr.usd_rub.official",
+  "definition_version": "candidate.1",
+  "resource_id": "cbr_xml:R01235",
+  "units": "RUB_per_USD",
+  "value": 100.0,
+  "quality": "observed",
+  "reference_start": "2026-11-05",
+  "reference_end": "2026-11-05",
+  "effective_date": "2026-11-05",
+  "published_at": null,
+  "publication_status": "unknown",
+  "received_at": "2026-11-05T09:00:00+03:00",
+  "source_timezone": "Europe/Moscow",
+  "snapshot_id": "synthetic-not-provider-response",
+  "receipt_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "dimensions": {"currency_id": "R01235", "unit_nominal": 1},
+  "is_synthetic": true
+}

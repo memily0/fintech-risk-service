@@ -1,0 +1,9 @@
+id,qualitative_theme,product_requirement,acceptance_link,limitation
+Q01,Object and horizon clarity,Every signal names task target geography frequency and horizon,A18 A22 A30,Qualitative requirement not a universal customer contract
+Q02,Action after warning,Investigation personal review note and reproducible report,A07 A25 A27,Workflow usefulness not measured decision improvement
+Q03,Data quality and delayed outcomes,Freshness missingness source availability and target maturity,A10 A11 A17 A19,No claim that every institution shares identical pain
+Q04,Validation and remediation,Versioned data model evidence limitations and failure runbook,A20 A22 A30 A33,Not an independent bank validation or endorsement
+Q05,Integration with existing workflows,Documented export and read API before custom bank adapters,A28 A29,Procurement buyer and willingness to pay not established
+Q06,Calibration versus ranking,Evaluate numeric probability quality separately from AUC,A20 A30,Calibration drift is not proven crisis predictor
+Q07,Confounding in portfolio changes,Separate external macro context from internal causal diagnosis,A22 A30,Macro contribution is not causal portfolio effect
+Q08,Domain boundaries,Do not present macro score as borrower scoring or insurance model,A18 A30,Insurance analogy and persona are not banking demand evidence
