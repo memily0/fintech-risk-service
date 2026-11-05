@@ -131,6 +131,28 @@ async function main() {
       await page.pdf({ path: path.join(evidence, "synthetic-review.pdf"), format: "A4", printBackground: true });
     }
 
+    await page.getByRole("button", { name: "Сохранить отчёт", exact: true }).click();
+    await page.locator("#report-detail .saved-report-note").waitFor();
+    assert.equal(await page.locator("#report-detail .saved-report-note").textContent(), note);
+    const savedReports = await (await page.request.get(base + "/api/v1/workspace/reports")).json();
+    const savedReportId = savedReports.reports[0].report_id;
+    for (const extension of ["PDF", "CSV", "JSON"]) {
+      const downloading = page.waitForEvent("download");
+      await page.getByRole("button", { name: "Скачать " + extension, exact: true }).click();
+      const download = await downloading;
+      await download.saveAs(path.join(temporary, "saved-report." + extension.toLowerCase()));
+    }
+    const captured = JSON.parse(fs.readFileSync(path.join(temporary, "saved-report.json"), "utf8"));
+    assert.equal(captured.review.review.note, note); assert.equal(captured.observations.length, 12);
+    assert.ok(fs.readFileSync(path.join(temporary, "saved-report.pdf")).subarray(0, 4).toString() === "%PDF");
+    if (evidence) { await page.screenshot({ path: path.join(evidence, "desktop-saved-report.png"), fullPage: true }); fs.copyFileSync(path.join(temporary, "saved-report.pdf"), path.join(evidence, "saved-report.pdf")); }
+    await page.locator('[data-view="reviews"]').click();
+    await page.locator("#review-note").fill(note + " Дополнено после сохранения отчёта.");
+    await page.getByRole("button", { name: "Сохранить вывод", exact: true }).click();
+    await page.waitForFunction(() => document.getElementById("notice").textContent.includes("Версия 4"));
+    const frozen = await (await page.request.get(base + "/api/v1/workspace/reports/" + savedReportId)).json();
+    assert.equal(frozen.review.review.note, note); assert.equal(frozen.review.review.revision, 3);
+
     const second = await browser.newContext();
     const register = await second.request.post(base + "/api/v1/auth/register", { headers: { Origin: base }, data: { email: "other@example.test", password: "Synthetic-only-browser-password" } });
     assert.equal(register.status(), 202);
@@ -139,14 +161,17 @@ async function main() {
     await second.request.post(base + "/api/v1/auth/verify-email", { headers: { Origin: base }, data: { token: JSON.parse(otherOutbox.stdout).messages[0].token } });
     await second.request.post(base + "/api/v1/auth/login", { headers: { Origin: base }, data: { email: "other@example.test", password: "Synthetic-only-browser-password" } });
     for (const suffix of ["", "/report.json", "/report.csv"]) assert.equal((await second.request.get(base + "/api/v1/workspace/reviews/" + review.review_id + suffix)).status(), 404);
+    for (const suffix of ["", "/export.pdf", "/export.csv", "/export.json"]) assert.equal((await second.request.get(base + "/api/v1/workspace/reports/" + savedReportId + suffix)).status(), 404);
     await second.close();
 
     for (const width of [390, 320]) {
       await page.setViewportSize({ width, height: 844 });
-      for (const view of ["monitor", "history", "model", "watchlist", "reviews", "system"]) {
+      for (const view of ["monitor", "history", "model", "watchlist", "reviews", "reports", "system"]) {
         await page.locator(`[data-view="${view}"]`).click();
         assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), `Horizontal overflow: ${view} at ${width}`);
       }
+      await page.locator('[data-view="reports"]').click();
+      if (evidence) await page.screenshot({ path: path.join(evidence, `reports-mobile-${width}.png`), fullPage: true });
       await page.locator('[data-view="model"]').click();
       if (evidence) await page.screenshot({ path: path.join(evidence, `model-mobile-${width}.png`), fullPage: true });
       await page.locator('[data-view="history"]').click();
@@ -160,15 +185,20 @@ async function main() {
     await tab.locator("#logout-button:not([hidden])").waitFor();
     await tab.locator('[data-view="reviews"]').click();
     await tab.locator("#review-note").waitFor();
+    await tab.locator('[data-view="reports"]').click();
+    await tab.locator("#report-detail .saved-report-note").waitFor();
     await page.locator("#logout-button").click();
     await tab.locator("#review-note").waitFor({ state: "detached" });
+    await tab.locator("#report-detail .saved-report-note").waitFor({ state: "detached" });
     assert.equal((await page.request.get(base + "/api/v1/workspace/reviews/" + review.review_id + "/report.json")).status(), 401);
     assert.equal(await page.locator("#print-report").textContent(), "");
+    assert.equal(await page.locator("#report-detail").textContent(), "");
+    assert.equal((await page.request.get(base + "/api/v1/workspace/reports/" + savedReportId + "/export.pdf")).status(), 401);
     await tab.close();
     assert.deepEqual(errors, []); assert.deepEqual(external, []);
     await browser.close(); browser = null;
     child.kill("SIGTERM"); await exit; stopped = true;
-    return { status: "ok", viewports: [1440, 390, 320], model_gate_and_no_current_score_verified: true, parser_history_and_revisions_verified: true, full_account_flow: true, watchlist_and_review_persisted: true, report_json_csv_and_print_verified: true, foreign_report_access_blocked: true, cross_tab_logout_cleared_private_state: true, script_injection_blocked: true, external_requests: 0, browser_errors: 0, server_stopped_after_check: true, production_ready: false };
+    return { status: "ok", viewports: [1440, 390, 320], immutable_saved_report_and_private_PDF_verified: true, model_gate_and_no_current_score_verified: true, parser_history_and_revisions_verified: true, full_account_flow: true, watchlist_and_review_persisted: true, report_json_csv_and_print_verified: true, foreign_report_access_blocked: true, cross_tab_logout_cleared_private_state: true, script_injection_blocked: true, external_requests: 0, browser_errors: 0, server_stopped_after_check: true, production_ready: false };
   } finally {
     if (browser) await browser.close();
     if (child && !stopped && child.exitCode === null) {

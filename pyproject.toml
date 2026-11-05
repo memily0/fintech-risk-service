@@ -12,6 +12,7 @@ dependencies = [
     "uvicorn>=0.30,<1",
     "pwdlib[argon2]>=0.2,<1",
     "email-validator>=2,<3",
+    "reportlab==5.1.0",
 ]
 
 [project.optional-dependencies]
@@ -26,4 +27,4 @@ arcshift_data = "src/arcshift_data"
 arcshift_model = "models/validation"
 
 [tool.setuptools.package-data]
-arcshift_v1 = ["fixtures/*.json", "fixtures/market/*", "migrations/*.sql", "static/*"]
+arcshift_v1 = ["fixtures/*.json", "fixtures/market/*", "migrations/*.sql", "static/*", "fonts/*"]

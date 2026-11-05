@@ -197,6 +197,9 @@ class AuthService:
     def limit_write(self, identity, peer):
         self._rate_limit("workspace_write", peer, identity.user_id)
 
+    def limit_export(self, identity, peer):
+        self._rate_limit("report_export", peer, identity.user_id)
+
     def logout(self, session, csrf):
         identity = self.require_csrf(session, csrf)
         now = int(self.clock())

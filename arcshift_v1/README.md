@@ -1,6 +1,6 @@
 # Local Integration Workbench
 
-This is the I02-I05.2 local integration build, not production ArcShift V1.
+This is the I02-I05.3 local integration build, not production ArcShift V1.
 It has a FastAPI service, persistent SQLite fixtures, synthetic .test accounts,
 owner-scoped watchlists/reviews and a responsive browser workbench. It does not
 replace the existing Streamlit app, train models, fetch provider data, load old
@@ -220,6 +220,28 @@ bridge accepts only synthetic standardized components with explicit snapshot,
 threshold, horizon and outcome as-of date. It prepares labels/train masks; it
 does not implement point-in-time feature construction, a frozen M04 run,
 calibration, model fitting, accepted artifacts or a training runner.
+
+## Saved Reports
+
+The Reports view adapts Nikita's report workflow to the common API and identity
+service, not his Streamlit demo accounts or separate SQLite. From a review,
+Save Report captures its exact revision/events and the expected market snapshot.
+The report is immutable; editing the review later does not alter it.
+
+- `POST /api/v1/workspace/reports`: same-origin/CSRF protected capture with
+  expected review revision and expected data snapshot ID; conflicts return 409.
+- `GET /api/v1/workspace/reports` and `/{UUID}`: owner-only, bounded listing.
+- `GET /api/v1/workspace/reports/{UUID}/export.pdf` (also `.csv` / `.json`):
+  authenticated owner check on each download and a separate export rate limit.
+
+All formats use the same frozen payload; PDF/JSON include the analyst note,
+CSV contains selected observations/revisions and their report/snapshot IDs.
+An explicit empty series list produces a header-only CSV and valid PDF.
+All observations are synthetic, not licensed real provider data. Old
+`reviews/{UUID}/report.*` endpoints remain dynamic draft exports, not saved
+immutable reports. The packaged Liberation Sans font/license supports Cyrillic
+without a host font/CDN. Maximum 2000 observation revisions per report. Tests:
+168 core + 18 optional temporal. [Integration details](../docs/v1_reports_integration.md).
 
 ## Remaining Integration Work
 

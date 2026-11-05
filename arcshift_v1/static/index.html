@@ -21,6 +21,7 @@
         <button class="nav-button" data-view="model"><i data-lucide="shield-check"></i><span>Модель</span></button>
         <button class="nav-button" data-view="watchlist"><i data-lucide="bookmark"></i><span>Наблюдение</span><span id="watch-count" class="count">0</span></button>
         <button class="nav-button" data-view="reviews"><i data-lucide="clipboard-list"></i><span>Разборы</span><span id="review-count" class="count">0</span></button>
+        <button class="nav-button" data-view="reports"><i data-lucide="files"></i><span>Отчёты</span><span id="report-count" class="count">0</span></button>
         <button class="nav-button" data-view="system"><i data-lucide="database"></i><span>Состояние системы</span></button>
       </nav>
       <div class="sidebar-bottom"><span class="status-dot"></span>Локальная сборка <span class="version">V1</span></div>
@@ -53,6 +54,10 @@
         <section id="reviews-view" class="view-section" hidden>
           <div class="section-toolbar"><h2>Журнал разборов</h2><button id="more-reviews" class="button secondary" hidden><i data-lucide="plus"></i>Загрузить ещё</button></div>
           <div class="work-grid"><div id="review-rows" class="review-list"></div><section id="review-detail" class="detail-panel" aria-label="Карточка разбора"></section></div>
+        </section>
+        <section id="reports-view" class="view-section" hidden>
+          <div class="section-toolbar"><h2>Сохранённые отчёты</h2><button id="more-reports" class="button secondary" hidden><i data-lucide="plus"></i>Загрузить ещё</button></div>
+          <div class="work-grid"><div id="report-rows" class="review-list"></div><section id="report-detail" class="detail-panel" aria-label="Сохранённый отчёт"></section></div>
         </section>
         <section id="system-view" class="view-section" hidden><div class="section-toolbar"><h2>Состояние сервиса</h2></div><dl id="system-details" class="system-details"></dl></section>
         <section id="history-view" class="view-section" hidden>

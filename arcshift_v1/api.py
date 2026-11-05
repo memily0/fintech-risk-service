@@ -17,6 +17,7 @@ from .web import router as web_router
 from .market import MarketStore
 from .market_api import router as market_router
 from .model_api import router as model_router
+from .report_api import router as report_router
 from .database import SchemaError
 from .schemas import CapabilitiesResponse, HealthResponse, ScenarioListResponse, ScenarioResponse
 from .settings import Settings
@@ -65,6 +66,7 @@ def create_app(settings: Settings | None = None, store_factory: Callable[[], Sce
     app.include_router(web_router)
     app.include_router(market_router)
     app.include_router(model_router)
+    app.include_router(report_router)
 
     @app.exception_handler(AuthFailure)
     async def authentication_failure(request, exc):

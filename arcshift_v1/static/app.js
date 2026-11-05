@@ -4,6 +4,7 @@ const $ = (id) => document.getElementById(id);
 const state = { view: "monitor", scenarios: [], selected: "historical_demo", user: null, watchlist: [], reviews: [], review: null, health: null, authMode: "login", generation: 0, moreReviews: false };
 Object.assign(state, { market: null, history: null, historyGeneration: 0, historyLoading: false });
 Object.assign(state, { model: null, signal: null, modelGeneration: 0, modelLoading: false });
+Object.assign(state, { reports: [], report: null, reportId: null, reportLoading: false, moreReports: false });
 const blockerLabels = { task_and_horizons_not_approved: "Задача и горизонты не утверждены", sources_not_admitted: "Источники не допущены для модели", mandatory_stress_inputs_incomplete: "Обязательные входы отсутствуют", evaluation_not_run: "Оценка качества не выполнена", accepted_artifact_missing: "Принятый артефакт модели отсутствует" };
 const componentLabels = { vix_zscore: "VIX", usd_rub_volatility_zscore: "Волатильность USD/RUB", imoex_volatility_zscore: "Волатильность IMOEX", imoex_drawdown_zscore: "Просадка IMOEX", ofz_inversion_zscore: "Инверсия кривой ОФЗ 10Y–2Y" };
 const seriesLabels = { "ru.fx.cbr.usd_rub.official": "USD/RUB · условный курс", "ru.fx.cbr.eur_rub.official": "EUR/RUB · условный курс", "ru.prices.rosstat.cpi_yoy": "Инфляция · условный CPI YoY", "ru.curve.cbr.zero_coupon.1y": "Кривая ОФЗ · условные 1 год", "ru.curve.cbr.zero_coupon.2y": "Кривая ОФЗ · условные 2 года", "ru.curve.cbr.zero_coupon.5y": "Кривая ОФЗ · условные 5 лет", "ru.curve.cbr.zero_coupon.10y": "Кривая ОФЗ · условные 10 лет" };
@@ -14,6 +15,7 @@ const statusLabels = { acknowledged: "Принят", in_review: "В разбор
 const transitions = { acknowledged: ["acknowledged", "in_review", "dismissed"], in_review: ["in_review", "closed", "dismissed"], closed: ["closed"], dismissed: ["dismissed"] };
 const accountChannel = typeof BroadcastChannel === "undefined" ? null : new BroadcastChannel("arcshift-local-account");
 const messages = { invalid_credentials: "Не удалось войти: проверьте данные и подтверждение почты.", invalid_verification: "Токен недействителен или истёк.", auth_rate_limited: "Слишком много попыток. Повторите через минуту.", invalid_request: "Проверьте поля. Почта должна оканчиваться на .test, пароль — от 15 до 128 символов.", authentication_required: "Сессия истекла. Требуется вход.", review_revision_conflict: "Запись уже изменена. Обновите журнал; ваш текст остался в поле.", invalid_review_transition: "Этот переход статуса недоступен.", csrf_failed: "Сессия изменилась. Войдите повторно.", local_auth_unavailable: "Локальная авторизация недоступна.", local_storage_unavailable: "Хранилище недоступно. Изменения не сохранены.", fixture_store_unavailable: "Данные недоступны. Текущий прогноз не рассчитан." };
+Object.assign(messages, { report_snapshot_conflict: "Снимок данных изменился. Обновите данные перед сохранением отчёта.", report_render_unavailable: "Не удалось сформировать PDF. Отчёт сохранён; доступны JSON и CSV.", report_series_not_supported: "Выбранный ряд недоступен для этого отчёта." });
 
 function node(tag, className, text) {
   const result = document.createElement(tag);
@@ -43,6 +45,8 @@ function clearPersonal() {
   state.user = null; state.watchlist = []; state.reviews = []; state.review = null; state.moreReviews = false;
   $("print-report").replaceChildren(); $("review-detail").replaceChildren(); $("review-rows").replaceChildren();
   $("password-input").value = ""; $("token-input").value = "";
+  state.reports = []; state.report = null; state.reportId = null; state.reportLoading = false; state.moreReports = false;
+  $("report-rows").replaceChildren(); $("report-detail").replaceChildren();
 }
 async function api(path, { method = "GET", data, blob = false } = {}) {
   const headers = {};
@@ -80,7 +84,7 @@ function empty(title, signedOut = false) {
   return result;
 }
 function render() {
-  const titles = { monitor: "Мониторинг", history: "История рядов", model: "Модель", watchlist: "Наблюдение", reviews: "Разборы", system: "Состояние системы" };
+  const titles = { monitor: "Мониторинг", history: "История рядов", model: "Модель", watchlist: "Наблюдение", reviews: "Разборы", reports: "Отчёты", system: "Состояние системы" };
   $("page-title").textContent = titles[state.view]; document.title = "ArcShift | " + titles[state.view];
   $("data-summary-value").textContent = state.view === "history" && state.market ? state.market.series.length + " рядов" : "6 состояний";
   $("data-summary-caption").textContent = state.view === "history" ? "Синтетические parser fixtures" : "Фиксированный synthetic snapshot";
@@ -91,15 +95,18 @@ function render() {
   $("account-email").textContent = state.user?.email || "";
   $("login-button").hidden = Boolean(state.user); $("logout-button").hidden = !state.user;
   $("watch-count").textContent = String(state.watchlist.length); $("review-count").textContent = state.reviews.length + (state.moreReviews ? "+" : "");
+  $("report-count").textContent = state.reports.length + (state.moreReports ? "+" : "");
   $("monitor-view").hidden = !["monitor", "watchlist"].includes(state.view);
   $("reviews-view").hidden = state.view !== "reviews"; $("system-view").hidden = state.view !== "system";
   $("history-view").hidden = state.view !== "history";
   $("model-view").hidden = state.view !== "model";
+  $("reports-view").hidden = state.view !== "reports";
   if (["monitor", "watchlist"].includes(state.view)) renderMonitor();
   if (state.view === "reviews") renderReviews();
   if (state.view === "system") renderSystem();
   if (state.view === "history") renderHistory();
   if (state.view === "model") renderModel();
+  if (state.view === "reports") renderReports();
   updateIcons();
 }
 function renderMonitor() {
@@ -188,6 +195,14 @@ function renderReview() {
     state.review = updated; await loadPrivate(); render(); notice("Вывод сохранён. Версия " + updated.revision + ".");
   }, save); }); panel.append(form);
   const exports = node("div", "detail-actions");
+  exports.append(button("Сохранить отчёт", "file-plus-2", async () => {
+    if (!canLeaveReview()) return;
+    if (!state.market) throw new Error("Снимок данных недоступен.");
+    const generation = state.generation;
+    const saved = await api("/api/v1/workspace/reports", { method: "POST", data: { review_id: review.review_id, expected_revision: review.revision, expected_data_snapshot_id: state.market.data_snapshot_id } });
+    if (generation !== state.generation) return;
+    state.report = saved; state.reportId = saved.report_id; await loadPrivate(); state.view = "reports"; render(); notice("Отчёт сохранён. Версия разбора " + saved.review.review.revision + ".");
+  }, "button primary"));
   for (const extension of ["json", "csv"]) exports.append(button("Скачать " + extension.toUpperCase(), "download", async () => {
     const generation = state.generation;
     const content = await api("/api/v1/workspace/reviews/" + review.review_id + "/report." + extension, { blob: true });
@@ -274,11 +289,49 @@ async function loadModel() {
 async function loadPrivate(append = false) {
   if (!state.user) return;
   const generation = state.generation;
-  const [watchlist, reviews] = await Promise.all([api("/api/v1/workspace/watchlist"), api("/api/v1/workspace/reviews?limit=50&offset=" + (append ? state.reviews.length : 0))]);
+  const [watchlist, reviews, reports] = await Promise.all([api("/api/v1/workspace/watchlist"), api("/api/v1/workspace/reviews?limit=50&offset=" + (append ? state.reviews.length : 0)), api("/api/v1/workspace/reports?limit=50")]);
   if (generation !== state.generation || !state.user) return;
   state.watchlist = watchlist.scenario_ids; state.reviews = append ? [...state.reviews, ...reviews.reviews] : reviews.reviews;
   state.moreReviews = reviews.reviews.length === 50;
+  state.reports = reports.reports; state.moreReports = reports.reports.length === 50;
   if (state.review) state.review = state.reviews.find((item) => item.review_id === state.review.review_id) || state.review;
+}
+async function openSavedReport(id) {
+  if (!state.user) return;
+  const generation = state.generation;
+  state.reportId = id; state.report = null; state.reportLoading = true; renderReports();
+  try {
+    const report = await api("/api/v1/workspace/reports/" + id);
+    if (generation === state.generation && state.reportId === id) state.report = report;
+  } finally { if (generation === state.generation && state.reportId === id) { state.reportLoading = false; renderReports(); updateIcons(); } }
+}
+function renderReports() {
+  const rows = $("report-rows"), detail = $("report-detail"); rows.replaceChildren(); detail.replaceChildren();
+  $("more-reports").hidden = !state.moreReports;
+  if (!state.user) { rows.append(empty("Личные отчёты", true)); return; }
+  if (!state.reports.length) { rows.append(empty("Сохранённых отчётов пока нет")); return; }
+  if (!state.reportId && !state.reportLoading) { run(() => openSavedReport(state.reports[0].report_id)); return; }
+  for (const summary of state.reports) {
+    const row = node("button", "review-row" + (summary.report_id === state.reportId ? " selected" : "")), title = node("span");
+    title.append(node("strong", "", "Отчёт " + summary.report_id.slice(0, 8)), node("small", "", new Date(summary.created_at * 1000).toLocaleString("ru-RU") + " · Разбор v" + summary.review_revision));
+    row.append(title, node("span", "state-label", summary.observation_count + " наблюдений"));
+    row.addEventListener("click", () => run(() => openSavedReport(summary.report_id))); rows.append(row);
+  }
+  if (state.reportLoading) { detail.append(node("p", "detail-message", "Получение сохранённого отчёта")); return; }
+  const report = state.report;
+  if (!report) return;
+  detail.append(node("h2", "", "Зафиксированный разбор"), node("p", "detail-subtitle", "Синтетический отчёт · Не текущий прогноз"));
+  const metadata = node("dl", "evidence-list"), review = report.review.review;
+  metadata.append(detailRow("Отчёт", report.report_id, true), detailRow("Версия разбора", review.revision), detailRow("Статус", statusLabels[review.status]), detailRow("Снимок данных", report.data_snapshot_id, true), detailRow("Наблюдений / ревизий", report.observations.length), detailRow("Источники", "Не допущены · Только synthetic"));
+  detail.append(metadata, node("p", "saved-report-note", review.note || "Вывод не указан"));
+  const actions = node("div", "detail-actions");
+  for (const extension of ["pdf", "csv", "json"]) actions.append(button("Скачать " + extension.toUpperCase(), "download", async () => {
+    const generation = state.generation;
+    const blob = await api("/api/v1/workspace/reports/" + report.report_id + "/export." + extension, { blob: true });
+    if (generation !== state.generation) return;
+    const url = URL.createObjectURL(blob), link = node("a"); link.href = url; link.download = "arcshift-report-" + report.report_id + "." + extension;
+    document.body.append(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+  })); detail.append(actions); updateIcons();
 }
 async function checkConnection() {
   try { state.health = await api("/readyz"); $("connection-state").textContent = "API доступен"; $("checked-at").textContent = "API: " + new Date().toLocaleTimeString("ru-RU"); }
@@ -304,6 +357,12 @@ for (const id of ["history-series", "history-start", "history-end", "history-rev
 $("model-horizon").addEventListener("change", () => run(loadModel));
 $("logout-button").addEventListener("click", () => run(async () => { if (!canLeaveReview()) return; await api("/api/v1/auth/logout", { method: "POST" }); clearPersonal(); accountChannel?.postMessage("changed"); state.view = "monitor"; render(); notice("Вы вышли из аккаунта."); }, $("logout-button")));
 $("more-reviews").addEventListener("click", () => run(async () => { await loadPrivate(true); render(); }, $("more-reviews")));
+$("more-reports").addEventListener("click", () => run(async () => {
+  const generation = state.generation;
+  const result = await api("/api/v1/workspace/reports?limit=50&offset=" + state.reports.length);
+  if (generation !== state.generation) return;
+  state.reports.push(...result.reports); state.moreReports = result.reports.length === 50; render();
+}, $("more-reports")));
 $("refresh-button").addEventListener("click", () => run(async () => {
   if (!canLeaveReview()) return;
   await checkConnection(); state.scenarios = (await api("/api/v1/demo/scenarios")).scenarios; await loadPrivate(); await loadMarket(); await loadModel(); render(); notice("");
