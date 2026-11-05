@@ -2,18 +2,13 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+import sys
 
 import numpy as np
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
-
-
-st.set_page_config(
-    page_title="Дашборд рыночного риска",
-    layout="wide",
-)
 
 
 DATA_PATH = Path(__file__).resolve().parents[1] / "data" / "final_dataset.csv"
@@ -935,4 +930,12 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    if "--legacy" in sys.argv[1:]:
+        st.set_page_config(page_title="Архивный дашборд рыночного риска", layout="wide")
+        st.warning("Архивный экран. Fitted-оценки относятся к обучающей выборке. "
+                   "Для проверки OOS и текущего риска этот экран неприменим.")
+        main()
+    else:
+        from analyst_workspace import render_workspace
+
+        render_workspace()
