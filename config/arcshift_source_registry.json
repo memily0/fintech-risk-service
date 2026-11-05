@@ -1,0 +1,117 @@
+{
+  "schema_version": "candidate.1",
+  "status": "candidate_not_admitted",
+  "network_requests_allowed": false,
+  "request_budget_decision": "D01-CANDIDATE-ZERO-UNTIL-SOURCE-ADMISSION",
+  "rights_decision": "D01-RIGHTS-PENDING-PER-PURPOSE",
+  "sources": [
+    {
+      "source_id": "cbr_fx",
+      "provider": "CBR",
+      "series": ["cbr_xml:R01235", "cbr_xml:R01239"],
+      "definitions": ["official RUB per one USD", "official RUB per one EUR"],
+      "units": ["RUB_per_USD", "RUB_per_EUR"],
+      "calendar": "CBR effective-date calendar; publication time remains unknown until verified",
+      "production_admitted": false,
+      "rights": {"display": "pending", "model_use": "pending", "export": "pending", "api_redistribution": "pending"},
+      "request_budget": {"technical_probe": 0, "backfill": 0, "incremental_per_run": 0},
+      "open_fields": ["usage permission", "publication metadata", "finite technical probe approval"]
+    },
+    {
+      "source_id": "cbr_key_rate",
+      "provider": "CBR",
+      "series": ["cbr:DailyInfo:KeyRate"],
+      "definitions": ["genuine key rate from 2013-09-17; no refinancing-rate fallback"],
+      "units": ["percent_per_annum"],
+      "calendar": "policy effective calendar; announcement and effective time kept separate",
+      "production_admitted": false,
+      "rights": {"display": "pending", "model_use": "pending", "export": "pending", "api_redistribution": "pending"},
+      "request_budget": {"technical_probe": 0, "backfill": 0, "incremental_per_run": 0},
+      "open_fields": ["usage permission", "announcement time", "finite technical probe approval"]
+    },
+    {
+      "source_id": "cbr_zero_coupon_curve",
+      "provider": "CBR_curve",
+      "series": ["cbr:zcyc_params:1Y", "cbr:zcyc_params:2Y", "cbr:zcyc_params:5Y", "cbr:zcyc_params:10Y"],
+      "definitions": ["zero-coupon government-bond curve selected by explicit maturity headers"],
+      "units": ["percent_per_annum"],
+      "calendar": "published curve dates; MOEX-origin and publication time still require decisions",
+      "production_admitted": false,
+      "rights": {"display": "pending", "model_use": "pending", "export": "pending", "api_redistribution": "pending"},
+      "request_budget": {"technical_probe": 0, "backfill": 0, "incremental_per_run": 0},
+      "open_fields": ["CBR/MOEX origin rights", "publication time", "finite technical probe approval"]
+    },
+    {
+      "source_id": "rosstat_cpi_yoy",
+      "provider": "Rosstat_candidate",
+      "series": ["rosstat:11521100300010200001:selection_pending"],
+      "definitions": ["Russia, all goods and services, monthly CPI versus same month previous year; index minus 100"],
+      "units": ["percent_YoY"],
+      "calendar": "complete monthly reference period; actual release time or null",
+      "production_admitted": false,
+      "rights": {"display": "pending", "model_use": "pending", "export": "pending", "api_redistribution": "pending"},
+      "request_budget": {"technical_probe": 0, "backfill": 0, "incremental_per_run": 0},
+      "open_fields": ["exact downloadable resource", "verified provider dimension codes", "applicable open-data terms", "release calendar"]
+    },
+    {
+      "source_id": "moex_imoex",
+      "provider": "MOEX_ISS_candidate",
+      "series": ["moex:stock:index:IMOEX:history:CLOSE"],
+      "definitions": ["IMOEX price index final daily close; not total return or intraday bar"],
+      "units": ["index_points"],
+      "calendar": "MOEX trading sessions with explicit final close",
+      "production_admitted": false,
+      "rights": {"display": "pending", "model_use": "pending", "export": "pending", "api_redistribution": "pending"},
+      "request_budget": {"technical_probe": 0, "backfill": 0, "incremental_per_run": 0},
+      "open_fields": ["display and non-display rights", "final-close definition", "finite technical probe approval"]
+    },
+    {
+      "source_id": "eia_brent",
+      "provider": "EIA_candidate",
+      "series": ["eia:RBRTE:daily"],
+      "definitions": ["Europe Brent Spot Price FOB; not Brent futures"],
+      "units": ["USD_per_barrel"],
+      "calendar": "provider observation dates and release schedule",
+      "production_admitted": false,
+      "rights": {"display": "pending", "model_use": "pending", "export": "pending", "api_redistribution": "pending"},
+      "request_budget": {"technical_probe": 0, "backfill": 0, "incremental_per_run": 0},
+      "open_fields": ["series-specific reuse rights", "release time", "revision policy"]
+    },
+    {
+      "source_id": "cboe_vix",
+      "provider": "Cboe_candidate",
+      "series": ["cboe:VIX:daily_close"],
+      "definitions": ["VIX index daily close; not a future or ETF"],
+      "units": ["index_points"],
+      "calendar": "US session close with timezone and holiday checks",
+      "production_admitted": false,
+      "rights": {"display": "pending", "model_use": "pending", "export": "pending", "api_redistribution": "pending"},
+      "request_budget": {"technical_probe": 0, "backfill": 0, "incremental_per_run": 0},
+      "open_fields": ["usage permission", "download resource", "legacy equivalence", "close timezone"]
+    },
+    {
+      "source_id": "sp500_price_close",
+      "provider": null,
+      "series": ["unresolved:SP500_price_close_feed"],
+      "definitions": ["S&P 500 price index daily close; not total return or ETF"],
+      "units": ["index_points"],
+      "calendar": "US session close; provider calendar pending",
+      "production_admitted": false,
+      "rights": {"display": "pending", "model_use": "pending", "export": "pending", "api_redistribution": "pending"},
+      "request_budget": {"technical_probe": 0, "backfill": 0, "incremental_per_run": 0},
+      "open_fields": ["provider", "usage permission", "history depth", "close timezone"]
+    },
+    {
+      "source_id": "gold_futures_continuous",
+      "provider": null,
+      "series": ["unresolved:gold_continuous_feed"],
+      "definitions": ["gold futures continuous representation compatible with legacy GC=F; not spot gold or ETF"],
+      "units": ["USD_per_troy_ounce"],
+      "calendar": "contract exchange sessions and explicit roll rule pending",
+      "production_admitted": false,
+      "rights": {"display": "pending", "model_use": "pending", "export": "pending", "api_redistribution": "pending"},
+      "request_budget": {"technical_probe": 0, "backfill": 0, "incremental_per_run": 0},
+      "open_fields": ["provider", "exact contract", "roll rule", "close versus settlement", "session timezone"]
+    }
+  ]
+}

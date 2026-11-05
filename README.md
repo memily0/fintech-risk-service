@@ -1,5 +1,21 @@
 # Crisis Prediction Service Dashboard
 
+## ArcShift V1: безопасная data-ветка D01-D03
+
+Новый код источников находится в `src/arcshift_data`. Он читает только
+переданные synthetic payloads и не делает сетевые запросы. Реальные источники,
+их права и нулевые до отдельного решения request budgets записаны в
+`config/arcshift_source_registry.json`.
+
+Проверка без скачивания данных и без обучения модели:
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python3 -m unittest discover -s tests -v
+```
+
+Старый `scripts/build_final_dataset.py` остаётся legacy batch builder и не
+используется этой проверкой.
+
 ## Быстрый старт
 
 ```bash
