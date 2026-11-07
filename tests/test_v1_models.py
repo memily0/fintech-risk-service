@@ -36,12 +36,14 @@ class ModelAPITests(unittest.TestCase):
         self.assertEqual(body["calibration_status"], "not_established")
         self.assertEqual(body["source_commit"], "eb54d6ed10e8337afc6c0221419936be07f6dadc")
 
-    def test_raw_coverage_reports_missing_vix_and_imoex_without_feature_claim(self):
+    def test_raw_coverage_includes_vix_and_imoex_without_feature_claim(self):
         body = self.client.get("/api/v1/models/status").json()
-        self.assertEqual(body["missing_input_series"], ["global.volatility.cboe.vix.close", "ru.equity.imoex.close"])
+        self.assertEqual(body["missing_input_series"], [])
         self.assertEqual(len(body["input_coverage"]), 5)
+        self.assertTrue(all(row["present_in_synthetic_snapshot"] for row in body["input_coverage"]))
         self.assertTrue(all(row["feature_ready"] is False for row in body["input_coverage"]))
         self.assertEqual(body["coverage_scope"], "raw_target_inputs_only_not_feature_readiness")
+        self.assertNotIn("mandatory_stress_inputs_incomplete", body["blockers"])
 
     def test_model_and_history_share_the_published_snapshot(self):
         status = self.client.get("/api/v1/models/status").json()

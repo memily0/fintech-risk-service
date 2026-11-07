@@ -6,6 +6,7 @@ from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_REGISTRY_PATH = PROJECT_ROOT / "config/arcshift_source_registry.json"
+EXACT_BINDING_SOURCES = {"cbr_key_rate", "rosstat_cpi_yoy", "moex_imoex", "cboe_vix"}
 
 
 def load_source_registry(registry_path=DEFAULT_REGISTRY_PATH):
@@ -38,5 +39,20 @@ def load_source_registry(registry_path=DEFAULT_REGISTRY_PATH):
 
         if source.get("production_admitted") is not False:
             raise ValueError(f"Candidate source {source_id} cannot be production admitted")
+
+        if source_id in EXACT_BINDING_SOURCES:
+            binding = source.get("exact_binding")
+            required = {
+                "definition_id",
+                "observation_time",
+                "calendar_id",
+                "availability_rule",
+                "publication_time_rule",
+            }
+            if not isinstance(binding, dict) or not all(
+                isinstance(binding.get(field), str) and binding[field].strip()
+                for field in required
+            ):
+                raise ValueError(f"Incomplete exact binding for {source_id}")
 
     return registry

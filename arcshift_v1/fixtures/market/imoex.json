@@ -1,0 +1,7 @@
+{
+  "synthetic_notice": "invented test values, not a provider response",
+  "history": {
+    "columns": ["SECID", "TRADEDATE", "CLOSE"],
+    "data": [["IMOEX", "2026-11-05", 2540.5]]
+  }
+}

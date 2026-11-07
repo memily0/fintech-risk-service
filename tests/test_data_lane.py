@@ -1,6 +1,9 @@
 import copy
 import json
+import os
 from pathlib import Path
+import subprocess
+import sys
 import tempfile
 import unittest
 
@@ -9,8 +12,11 @@ from arcshift_data import (
     RateLimitError,
     SchedulerLock,
     load_source_registry,
+    parse_cboe_vix_csv,
     parse_cbr_currency_xml,
     parse_cbr_curve_html,
+    parse_cbr_key_rate_xml,
+    parse_moex_imoex_json,
     parse_rosstat_cpi_json,
     receipt_freshness_state,
     run_with_bounded_retry,
@@ -43,6 +49,16 @@ SYNTHETIC_CPI_CODES = {
     "comparison": "SYNTHETIC_SAME_MONTH_LAST_YEAR",
     "frequency": "SYNTHETIC_MONTHLY",
 }
+
+KEY_RATE_XML = b"""<KeyRateResult><KeyRate>
+  <KR><DT>2026-11-05T00:00:00+03:00</DT><Rate>14.0</Rate></KR>
+</KeyRate></KeyRateResult>"""
+
+IMOEX_JSON = json.dumps(
+    {"history": {"columns": ["TRADEDATE", "CLOSE", "SECID"], "data": [["2026-11-05", 2540.5, "IMOEX"]]}}
+).encode()
+
+VIX_CSV = b"DATE,OPEN,HIGH,LOW,CLOSE\n11/04/2026,18.1,19.3,17.9,18.7\n"
 
 
 def make_cpi_payload(extra_rows=None):
@@ -95,6 +111,22 @@ class SourceRegistryTests(unittest.TestCase):
             source["resource_id"] for source in candidate_contract["raw_series"]
         }
         self.assertEqual(registered_resource_ids, candidate_resource_ids)
+
+    def test_registry_has_exact_time_and_calendar_bindings_for_priority_sources(self):
+        registry = load_source_registry()
+        priority = {"cbr_key_rate", "rosstat_cpi_yoy", "moex_imoex", "cboe_vix"}
+        bindings = {
+            source["source_id"]: source.get("exact_binding")
+            for source in registry["sources"]
+            if source["source_id"] in priority
+        }
+        self.assertEqual(set(bindings), priority)
+        for binding in bindings.values():
+            self.assertIn("calendar_id", binding)
+            self.assertTrue(
+                "receipt" in binding["availability_rule"]
+                or "received_at" in binding["availability_rule"]
+            )
 
 
 class ParserTests(unittest.TestCase):
@@ -182,6 +214,39 @@ class ParserTests(unittest.TestCase):
                     bad_payload, SYNTHETIC_CPI_CODES, RECEIVED_AT, SNAPSHOT_ID, True
                 )
 
+    def test_genuine_key_rate_has_effective_day_and_no_refinancing_fallback(self):
+        row = parse_cbr_key_rate_xml(KEY_RATE_XML, RECEIVED_AT, SNAPSHOT_ID, True)[0]
+        self.assertEqual(row["series_id"], "ru.policy.cbr.key_rate")
+        self.assertEqual(row["resource_id"], "cbr:DailyInfo:KeyRate")
+        self.assertEqual(row["effective_date"], "2026-11-05")
+        self.assertEqual(row["value"], 14.0)
+        self.assertIsNone(row["published_at"])
+        with self.assertRaises(ValueError):
+            parse_cbr_key_rate_xml(
+                b"<Root><Row><DT>2013-09-16</DT><Rate>5.5</Rate></Row></Root>",
+                RECEIVED_AT,
+                SNAPSHOT_ID,
+                True,
+            )
+
+    def test_imoex_and_vix_use_named_official_close_fields(self):
+        imoex = parse_moex_imoex_json(IMOEX_JSON, RECEIVED_AT, SNAPSHOT_ID, True)[0]
+        vix = parse_cboe_vix_csv(VIX_CSV, RECEIVED_AT, SNAPSHOT_ID, True)[0]
+        self.assertEqual(imoex["series_id"], "ru.equity.imoex.close")
+        self.assertEqual(imoex["value"], 2540.5)
+        self.assertEqual(imoex["source_timezone"], "Europe/Moscow")
+        self.assertEqual(vix["series_id"], "global.volatility.cboe.vix.close")
+        self.assertEqual(vix["value"], 18.7)
+        self.assertEqual(vix["source_timezone"], "America/New_York")
+
+    def test_imoex_and_vix_reject_wrong_instrument_or_schema(self):
+        wrong_imoex = IMOEX_JSON.replace(b"IMOEX", b"IMOEX2")
+        bad_vix = b"DATE,CLOSE\n11/04/2026,18.7\n"
+        with self.assertRaises(ValueError):
+            parse_moex_imoex_json(wrong_imoex, RECEIVED_AT, SNAPSHOT_ID, True)
+        with self.assertRaises(ValueError):
+            parse_cboe_vix_csv(bad_vix, RECEIVED_AT, SNAPSHOT_ID, True)
+
 
 class IngestionTests(unittest.TestCase):
     def setUp(self):
@@ -255,6 +320,19 @@ class IngestionTests(unittest.TestCase):
                     pass
         self.assertFalse(lock_path.exists())
 
+    def test_scheduler_recovers_lock_left_by_crashed_process(self):
+        lock_path = Path(self.temporary_directory.name) / "crashed-worker.lock"
+        code = (
+            "import os; from arcshift_data import SchedulerLock; "
+            f"lock=SchedulerLock({str(lock_path)!r}); lock.__enter__(); os._exit(23)"
+        )
+        result = subprocess.run([sys.executable, "-c", code], env=dict(os.environ), timeout=10)
+        self.assertEqual(result.returncode, 23)
+        self.assertTrue(lock_path.exists())
+        with SchedulerLock(lock_path):
+            self.assertTrue(lock_path.exists())
+        self.assertFalse(lock_path.exists())
+
     def test_freshness_states_are_explicit(self):
         self.assertEqual(
             receipt_freshness_state(self.observation, "2026-11-05T09:05:00+03:00", 600, "open"),
@@ -289,7 +367,7 @@ class RetryTests(unittest.TestCase):
         result = run_with_bounded_retry(
             sometimes_rate_limited,
             maximum_attempts=3,
-            wait_seconds=(0, 1, 2),
+            wait_seconds=(1, 2),
             sleep_function=waits.append,
         )
         self.assertEqual(result, "ok")
@@ -304,8 +382,28 @@ class RetryTests(unittest.TestCase):
             raise TimeoutError("synthetic timeout")
 
         with self.assertRaises(TimeoutError):
-            run_with_bounded_retry(always_times_out, maximum_attempts=2, wait_seconds=(0, 0))
+            run_with_bounded_retry(always_times_out, maximum_attempts=2, wait_seconds=(0,))
         self.assertEqual(len(attempts), 2)
+
+    def test_retry_after_is_honored_but_capped(self):
+        waits = []
+        attempts = []
+
+        def limited_once():
+            attempts.append(1)
+            if len(attempts) == 1:
+                raise RateLimitError(retry_after_seconds=120)
+            return "ok"
+
+        result = run_with_bounded_retry(
+            limited_once,
+            maximum_attempts=2,
+            wait_seconds=(1,),
+            maximum_wait_seconds=5,
+            sleep_function=waits.append,
+        )
+        self.assertEqual(result, "ok")
+        self.assertEqual(waits, [5])
 
     def test_non_retryable_error_is_not_retried(self):
         attempts = []

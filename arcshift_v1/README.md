@@ -113,14 +113,14 @@ models deliberately refuse production/live score claims.
 Nastya's D01-D03 code at `8bdb1de597eb5d567a8a19c84435ad9294a206cc`
 is preserved under `src/arcshift_data`; see [integration record](../docs/v1_data_integration.md).
 The editable package connects it without PYTHONPATH manipulation. Local startup
-uses its actual FX/curve/CPI parsers and revision store on explicitly invented
+uses its actual FX/curve/CPI/key-rate/IMOEX/VIX parsers and revision store on explicitly invented
 provider-shaped fixtures, then atomically publishes an immutable SQLite read
 snapshot. Real receipts remain prohibited. The market registry snapshot is
 packaged explicitly, so the API also works from an unpacked wheel outside the
 checkout. The data helper's default external config path is for source checkouts;
 the API passes its packaged synthetic registry explicitly.
 
-- `GET /api/v1/market/series`: seven synthetic series, metadata and row counts.
+- `GET /api/v1/market/series`: ten synthetic series, metadata and row counts.
 - `GET /api/v1/market/series/{series_id}/history`: date filtering, bounded
   pagination and optional `include_revisions=true`.
 - Candidate market contract: `v1-local-market.1`, always synthetic,
@@ -132,6 +132,12 @@ to the original seed. Content hashes, contiguous revisions, latest-map
 consistency and series/resource/unit bindings are checked on reads. These are
 not real provider connectivity, a scheduler, freshness admission or model input
 acceptance. The runtime never exposes the producer JSON as a file browser.
+
+`DataWorker` is the offline worker boundary for the next admitted step. It uses
+the same `MarketStore`/`ARCSHIFT_DB_PATH` as the API, bounded retry and a
+single-process lock; it does not create another database. Current tests feed it
+synthetic bytes only. The finite real-source probe plan is in
+`docs/data_source_probe_plan.md`; all live request budgets remain zero.
 
 ## Fixture Provenance
 
@@ -215,7 +221,7 @@ python3 -m venv .venv-validation
 ```
 
 The core suite deliberately excludes this optional subdirectory. Current
-counts are 149 core/data/API tests and 18 optional temporal tests. The temporal
+counts are 177 core/data/API tests and 18 optional temporal tests. The temporal
 bridge accepts only synthetic standardized components with explicit snapshot,
 threshold, horizon and outcome as-of date. It prepares labels/train masks; it
 does not implement point-in-time feature construction, a frozen M04 run,
@@ -241,7 +247,7 @@ All observations are synthetic, not licensed real provider data. Old
 `reviews/{UUID}/report.*` endpoints remain dynamic draft exports, not saved
 immutable reports. The packaged Liberation Sans font/license supports Cyrillic
 without a host font/CDN. Maximum 2000 observation revisions per report. Tests:
-168 core + 18 optional temporal. [Integration details](../docs/v1_reports_integration.md).
+177 core + 18 optional temporal. [Integration details](../docs/v1_reports_integration.md).
 
 ## Remaining Integration Work
 

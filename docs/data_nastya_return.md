@@ -44,3 +44,22 @@
 Парсер CPI требует передать полный набор заранее проверенных dimension codes;
 встроенных реальных codes нет, потому что официальный binding ещё не подтверждён.
 Структурные tests не дают права использовать источник и не закрывают release gate.
+
+## Итерация D03.1 / подготовка D04
+
+- Retry исправлен: реальные паузы между попытками, ограниченный Retry-After,
+  строгая проверка wait policy; schema errors не повторяются.
+- Scheduler lock восстанавливается после аварийного завершения процесса с
+  мёртвым PID. Добавлен subprocess regression test.
+- Добавлены чистые parsers genuine CBR KeyRate, MOEX IMOEX CLOSE и официальный
+  Cboe VIX daily CLOSE. Synthetic snapshot теперь содержит 10 рядов; обязательные
+  raw-компоненты текущего target представлены, но feature_ready остаётся false.
+- Worker собирает response -> observation -> revision и публикует через общий
+  `MarketStore` в тот же `ARCSHIFT_DB_PATH`. Отдельной worker-БД нет.
+- Exact binding для CPI, key rate, IMOEX и VIX включает definition ID, calendar,
+  observation time и receipt-based availability. У CPI transport selector/codes
+  ещё требуют одного разрешённого metadata probe; это не скрыто как «готово».
+- Конечный ограниченный план реальных запросов: `data_source_probe_plan.md`.
+  Запросы не выполнялись, registry budgets по-прежнему нулевые.
+- Проверки итерации: 177 core tests, backend smoke с двумя restart cycles,
+  auth smoke с сохранением/отзывом сессии, `pip check` и `git diff --check` — OK.

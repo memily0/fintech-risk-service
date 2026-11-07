@@ -23,7 +23,15 @@
       "series": ["cbr:DailyInfo:KeyRate"],
       "definitions": ["genuine key rate from 2013-09-17; no refinancing-rate fallback"],
       "units": ["percent_per_annum"],
+      "candidate_location": "https://www.cbr.ru/DailyInfoWebServ/DailyInfo.asmx",
       "calendar": "policy effective calendar; announcement and effective time kept separate",
+      "exact_binding": {
+        "definition_id": "ru.policy.cbr.key_rate.genuine.v1",
+        "observation_time": "effective_date from CBR DailyInfo KeyRate; valid on every calendar day including weekends and holidays",
+        "calendar_id": "cbr_key_rate_calendar_days_v1",
+        "availability_rule": "known only at max(received_at, published_at when verified); never backdate to effective_date",
+        "publication_time_rule": "announcement timestamp is separate; keep published_at null until an official timestamp is captured"
+      },
       "production_admitted": false,
       "rights": {"display": "pending", "model_use": "pending", "export": "pending", "api_redistribution": "pending"},
       "request_budget": {"technical_probe": 0, "backfill": 0, "incremental_per_run": 0},
@@ -47,7 +55,15 @@
       "series": ["rosstat:11521100300010200001:selection_pending"],
       "definitions": ["Russia, all goods and services, monthly CPI versus same month previous year; index minus 100"],
       "units": ["percent_YoY"],
+      "candidate_location": "https://rosstat.gov.ru/statistics/price/ (official table and indicator 11521100300010200001)",
       "calendar": "complete monthly reference period; actual release time or null",
+      "exact_binding": {
+        "definition_id": "ru.prices.rosstat.cpi_yoy.national_all_items.v1",
+        "observation_time": "calendar month end for Russia, all goods and services, same month previous year; index_percent minus 100",
+        "calendar_id": "rosstat_cpi_monthly_6_to_10_workday_v1",
+        "availability_rule": "expected on the 6th-10th working day after month end, but usable only after actual receipt",
+        "publication_time_rule": "use an official release timestamp when captured; otherwise published_at stays null and received_at is the knowledge boundary"
+      },
       "production_admitted": false,
       "rights": {"display": "pending", "model_use": "pending", "export": "pending", "api_redistribution": "pending"},
       "request_budget": {"technical_probe": 0, "backfill": 0, "incremental_per_run": 0},
@@ -59,11 +75,19 @@
       "series": ["moex:stock:index:IMOEX:history:CLOSE"],
       "definitions": ["IMOEX price index final daily close; not total return or intraday bar"],
       "units": ["index_points"],
+      "candidate_location": "https://iss.moex.com/iss/history/engines/stock/markets/index/securities/IMOEX.json",
       "calendar": "MOEX trading sessions with explicit final close",
+      "exact_binding": {
+        "definition_id": "ru.equity.moex.imoex.main_session_close.v1",
+        "observation_time": "TRADEDATE CLOSE for SECID IMOEX; official main-session end-of-day value, not IMOEX2",
+        "calendar_id": "moex_equities_main_session_v1",
+        "availability_rule": "not before the main-session close at 18:50 Europe/Moscow and never before actual receipt",
+        "publication_time_rule": "store a verified MOEX publication timestamp when available; otherwise published_at stays null"
+      },
       "production_admitted": false,
       "rights": {"display": "pending", "model_use": "pending", "export": "pending", "api_redistribution": "pending"},
       "request_budget": {"technical_probe": 0, "backfill": 0, "incremental_per_run": 0},
-      "open_fields": ["display and non-display rights", "final-close definition", "finite technical probe approval"]
+      "open_fields": ["display and non-display rights", "finite technical probe approval"]
     },
     {
       "source_id": "eia_brent",
@@ -83,11 +107,19 @@
       "series": ["cboe:VIX:daily_close"],
       "definitions": ["VIX index daily close; not a future or ETF"],
       "units": ["index_points"],
+      "candidate_location": "https://cdn-api.cboe.com/api/global/us_indices/daily_prices/VIX_History.csv",
       "calendar": "US session close with timezone and holiday checks",
+      "exact_binding": {
+        "definition_id": "global.volatility.cboe.vix.official_daily_close.v1",
+        "observation_time": "DATE CLOSE from Cboe VIX_History.csv, America/New_York session date",
+        "calendar_id": "cboe_us_index_sessions_v1",
+        "availability_rule": "official file is updated daily; value is usable only after actual receipt and session-date validation",
+        "publication_time_rule": "no historical release timestamp is inferred from DATE; published_at stays null unless separately verified"
+      },
       "production_admitted": false,
       "rights": {"display": "pending", "model_use": "pending", "export": "pending", "api_redistribution": "pending"},
       "request_budget": {"technical_probe": 0, "backfill": 0, "incremental_per_run": 0},
-      "open_fields": ["usage permission", "download resource", "legacy equivalence", "close timezone"]
+      "open_fields": ["usage permission", "legacy equivalence", "finite technical probe approval"]
     },
     {
       "source_id": "sp500_price_close",

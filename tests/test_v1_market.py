@@ -2,17 +2,22 @@
 
 from contextlib import closing
 import hashlib
+import os
 from pathlib import Path
+import subprocess
+import sys
 from tempfile import TemporaryDirectory
 import unittest
 
 from fastapi.testclient import TestClient
 
 from arcshift_v1.api import create_app
+from arcshift_v1.data_worker import DataWorker, SourceJob
 from arcshift_v1.database import connect
 from arcshift_v1.market import FIXTURES, MarketStore, canonical, fixture_state, validate_state
 from arcshift_v1.settings import Settings, PROJECT_ROOT
 from arcshift_v1.store import StoreUnavailableError
+from arcshift_data import parse_moex_imoex_json
 
 
 USD = "ru.fx.cbr.usd_rub.official"
@@ -48,13 +53,13 @@ class MarketTests(unittest.TestCase):
     def test_registry_fixture_matches_contributor_config(self):
         self.assertEqual((FIXTURES / "source_registry.json").read_bytes(), (PROJECT_ROOT / "config/arcshift_source_registry.json").read_bytes())
 
-    def test_actual_parsers_and_revision_store_produce_seven_series(self):
+    def test_actual_parsers_and_revision_store_include_imoex_vix_and_key_rate(self):
         response = self.client.get("/api/v1/market/series")
         self.assertEqual(response.status_code, 200)
         body = response.json()
-        self.assertEqual(len(body["series"]), 7)
-        self.assertEqual(sum(row["observation_count"] for row in body["series"]), 11)
-        self.assertEqual(sum(row["revision_count"] for row in body["series"]), 12)
+        self.assertEqual(len(body["series"]), 10)
+        self.assertEqual(sum(row["observation_count"] for row in body["series"]), 14)
+        self.assertEqual(sum(row["revision_count"] for row in body["series"]), 15)
         self.assertTrue(body["synthetic"])
         self.assertEqual(body["source_rights_status"], "not_admitted")
         self.assertEqual(body["validity_status"], "historical_demo")
@@ -112,6 +117,96 @@ class MarketTests(unittest.TestCase):
         with TestClient(create_app(self.settings)) as second:
             self.assertEqual(second.get("/api/v1/market/series").json()["data_snapshot_id"], identifier)
         self.assertEqual(len(self.query("SELECT * FROM local_market_snapshots")), 2)
+
+    def test_worker_retries_then_publishes_to_the_same_database(self):
+        attempts = []
+        waits = []
+        payload = b'{"history":{"columns":["SECID","TRADEDATE","CLOSE"],"data":[["IMOEX","2026-11-05",2550.0]]}}'
+
+        def fetch():
+            attempts.append(1)
+            if len(attempts) == 1:
+                raise TimeoutError("synthetic timeout")
+            return payload
+
+        job = SourceJob(
+            name="imoex",
+            fetch_payload=fetch,
+            parse_payload=lambda raw: parse_moex_imoex_json(
+                raw, "2026-11-05T09:10:00+03:00", "worker-receipt-1", True
+            ),
+            maximum_attempts=2,
+            wait_seconds=(0,),
+        )
+        worker = DataWorker(self.store, sleep_function=waits.append)
+        result = worker.run([job], "2026-11-05T09:11:00+03:00")
+
+        self.assertEqual(result.added_count, 1)
+        self.assertEqual(waits, [0])
+        self.assertEqual(len(self.query("SELECT * FROM local_market_snapshots")), 2)
+        self.assertEqual(self.store.path.resolve(), self.path.resolve())
+        history = self.client.get(
+            "/api/v1/market/series/ru.equity.imoex.close/history",
+            params={"include_revisions": True},
+        ).json()
+        self.assertEqual(history["total"], 2)
+        self.assertEqual(history["observations"][-1]["observation"]["value"], 2550.0)
+
+    def test_worker_recovers_after_failure_before_shared_publish(self):
+        payload = b'{"history":{"columns":["SECID","TRADEDATE","CLOSE"],"data":[["IMOEX","2026-11-05",2551.0]]}}'
+        job = SourceJob(
+            name="imoex",
+            fetch_payload=lambda: payload,
+            parse_payload=lambda raw: parse_moex_imoex_json(
+                raw, "2026-11-05T09:12:00+03:00", "worker-receipt-2", True
+            ),
+            maximum_attempts=1,
+            wait_seconds=(),
+        )
+
+        class CrashBeforePublish:
+            path = self.path
+
+            def read(inner_self):
+                return self.store.read()
+
+            def publish(inner_self, raw):
+                raise RuntimeError("synthetic worker crash")
+
+        crash_worker = DataWorker(CrashBeforePublish())
+        lock_path = crash_worker.lock_path
+        with self.assertRaisesRegex(RuntimeError, "worker crash"):
+            crash_worker.run([job], "2026-11-05T09:13:00+03:00")
+        self.assertEqual(len(self.query("SELECT * FROM local_market_snapshots")), 1)
+        self.assertFalse(lock_path.exists())
+
+        result = DataWorker(self.store).run(
+            [job], "2026-11-05T09:13:00+03:00"
+        )
+        self.assertEqual(result.added_count, 1)
+        self.assertEqual(len(self.query("SELECT * FROM local_market_snapshots")), 2)
+
+    def test_database_recovers_uncommitted_snapshot_after_worker_process_crash(self):
+        active_before = self.query("SELECT * FROM local_market_active")
+        code = (
+            "import hashlib, os; from pathlib import Path; "
+            "from arcshift_v1.database import connect; "
+            f"db=Path({str(self.path)!r}); c=connect(db, create=False); "
+            "c.execute('BEGIN IMMEDIATE'); payload='{}'; "
+            "c.execute('INSERT INTO local_market_snapshots VALUES (?, ?, ?, 1, 1)', "
+            "('market-'+'f'*64, payload, hashlib.sha256(payload.encode()).hexdigest())); "
+            "os._exit(24)"
+        )
+        result = subprocess.run([sys.executable, "-c", code], env=dict(os.environ), timeout=10)
+        self.assertEqual(result.returncode, 24)
+        self.assertEqual(len(self.query("SELECT * FROM local_market_snapshots")), 1)
+        self.assertEqual(self.query("SELECT * FROM local_market_active"), active_before)
+        with TestClient(create_app(self.settings)) as restarted:
+            self.assertEqual(restarted.get("/readyz").status_code, 200)
+            self.assertEqual(
+                restarted.get("/api/v1/market/series").json()["data_snapshot_id"],
+                active_before[0][1],
+            )
 
     def test_invalid_real_observation_cannot_be_published(self):
         raw = fixture_state()

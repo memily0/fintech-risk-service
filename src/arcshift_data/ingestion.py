@@ -1,5 +1,6 @@
 """Small file-based ingest boundary used by offline tests and fixtures."""
 
+import copy
 from datetime import datetime
 import hashlib
 import json
@@ -94,16 +95,41 @@ class SchedulerLock:
 
     def __enter__(self):
         self.lock_path.parent.mkdir(parents=True, exist_ok=True)
-        try:
-            self.lock_file_descriptor = os.open(
-                self.lock_path,
-                os.O_CREAT | os.O_EXCL | os.O_WRONLY,
-                0o600,
-            )
-        except FileExistsError as error:
-            raise RuntimeError("Another scheduler already owns this lock") from error
-        os.write(self.lock_file_descriptor, str(os.getpid()).encode("ascii"))
+        for lock_attempt in range(2):
+            try:
+                flags = os.O_CREAT | os.O_EXCL | os.O_WRONLY
+                if hasattr(os, "O_NOFOLLOW"):
+                    flags |= os.O_NOFOLLOW
+                self.lock_file_descriptor = os.open(self.lock_path, flags, 0o600)
+                break
+            except FileExistsError as error:
+                if lock_attempt == 0 and self._remove_dead_owner():
+                    continue
+                raise RuntimeError("Another scheduler already owns this lock") from error
+
+        os.write(self.lock_file_descriptor, f"{os.getpid()}\n".encode("ascii"))
+        os.fsync(self.lock_file_descriptor)
         return self
+
+    def _remove_dead_owner(self):
+        try:
+            raw_pid = self.lock_path.read_text(encoding="ascii").strip()
+            owner_pid = int(raw_pid)
+        except (OSError, UnicodeError, ValueError):
+            return False
+        if owner_pid <= 0:
+            return False
+        try:
+            os.kill(owner_pid, 0)
+        except ProcessLookupError:
+            try:
+                self.lock_path.unlink()
+            except FileNotFoundError:
+                pass
+            return True
+        except PermissionError:
+            return False
+        return False
 
     def __exit__(self, exception_type, exception_value, traceback):
         if self.lock_file_descriptor is not None:
@@ -127,81 +153,108 @@ class JsonObservationStore:
         return json.loads(self.state_path.read_text(encoding="utf-8"))
 
     def publish(self, observations, published_at):
-        _parse_timestamp(published_at)
-        if not observations:
-            raise ValueError("At least one observation is required")
         state = self._read_state()
-        added_count = 0
-        duplicate_count = 0
-
-        for observation in observations:
-            _validate_candidate_observation(observation)
-            observation_identity = _observation_identity(observation)
-            receipt_hash = observation["receipt_sha256"]
-
-            matching_revision = None
-            for revision in state["revisions"]:
-                if (
-                    revision["observation_identity"] == observation_identity
-                    and revision["observation"]["receipt_sha256"] == receipt_hash
-                ):
-                    matching_revision = revision
-                    break
-
-            if matching_revision is not None:
-                old_observation = matching_revision["observation"]
-                comparable_fields = ["series_id", "resource_id", "units", "value", "quality", "reference_start", "reference_end", "dimensions"]
-                for field_name in comparable_fields:
-                    if old_observation.get(field_name) != observation.get(field_name):
-                        raise ValueError("One receipt hash cannot describe different normalized data")
-                duplicate_count += 1
-                continue
-
-            revision_number = 1
-            for revision in state["revisions"]:
-                if revision["observation_identity"] == observation_identity:
-                    revision_number = max(revision_number, revision["revision_number"] + 1)
-
-            revision_record = {
-                "observation_identity": observation_identity,
-                "revision_number": revision_number,
-                "ingested_at": published_at,
-                "observation": observation,
-            }
-            state["revisions"].append(revision_record)
-            added_count += 1
-
-            current_latest = state["latest"].get(observation_identity)
-            if current_latest is None:
-                state["latest"][observation_identity] = revision_record
-            else:
-                new_received_time = _parse_timestamp(observation["received_at"])
-                old_received_time = _parse_timestamp(current_latest["observation"]["received_at"])
-                if new_received_time >= old_received_time:
-                    state["latest"][observation_identity] = revision_record
-
-        if added_count == 0:
-            return {
-                "added_count": 0,
-                "duplicate_count": duplicate_count,
-                "snapshot_id": state["snapshot_id"],
-            }
-
-        state["published_at"] = published_at
-        state_without_id = dict(state)
-        state_without_id.pop("snapshot_id", None)
-        canonical_state = json.dumps(state_without_id, sort_keys=True, separators=(",", ":"))
-        state["snapshot_id"] = hashlib.sha256(canonical_state.encode("utf-8")).hexdigest()
-        _atomic_write_json(self.state_path, state)
-
-        return {
-            "added_count": added_count,
-            "duplicate_count": duplicate_count,
-            "snapshot_id": state["snapshot_id"],
-        }
+        state, result = merge_observation_state(state, observations, published_at)
+        if result["added_count"]:
+            _atomic_write_json(self.state_path, state)
+        return result
 
     def read(self):
         return self._read_state()
+
+
+def merge_observation_state(state, observations, published_at):
+    """Return a new revision state without writing a second storage system."""
+    published_time = _parse_timestamp(published_at)
+    if not observations:
+        raise ValueError("At least one observation is required")
+
+    next_state = copy.deepcopy(state)
+    if next_state.get("schema_version") != "candidate.1":
+        raise ValueError("Only candidate.1 revision state is supported")
+    if not isinstance(next_state.get("revisions"), list) or not isinstance(next_state.get("latest"), dict):
+        raise ValueError("Revision state is malformed")
+
+    added_count = 0
+    duplicate_count = 0
+    comparable_fields = [
+        "series_id",
+        "resource_id",
+        "units",
+        "value",
+        "quality",
+        "reference_start",
+        "reference_end",
+        "effective_date",
+        "published_at",
+        "publication_status",
+        "dimensions",
+    ]
+
+    for observation in observations:
+        _validate_candidate_observation(observation)
+        if _parse_timestamp(observation["received_at"]) > published_time:
+            raise ValueError("Observation receipt cannot follow snapshot publication")
+        observation_identity = _observation_identity(observation)
+        receipt_hash = observation["receipt_sha256"]
+
+        matching_revision = None
+        for revision in next_state["revisions"]:
+            if (
+                revision["observation_identity"] == observation_identity
+                and revision["observation"]["receipt_sha256"] == receipt_hash
+            ):
+                matching_revision = revision
+                break
+
+        if matching_revision is not None:
+            old_observation = matching_revision["observation"]
+            for field_name in comparable_fields:
+                if old_observation.get(field_name) != observation.get(field_name):
+                    raise ValueError("One receipt hash cannot describe different normalized data")
+            duplicate_count += 1
+            continue
+
+        revision_number = 1
+        for revision in next_state["revisions"]:
+            if revision["observation_identity"] == observation_identity:
+                revision_number = max(revision_number, revision["revision_number"] + 1)
+
+        revision_record = {
+            "observation_identity": observation_identity,
+            "revision_number": revision_number,
+            "ingested_at": published_at,
+            "observation": observation,
+        }
+        next_state["revisions"].append(revision_record)
+        added_count += 1
+
+        current_latest = next_state["latest"].get(observation_identity)
+        if current_latest is None:
+            next_state["latest"][observation_identity] = revision_record
+        else:
+            new_received_time = _parse_timestamp(observation["received_at"])
+            old_received_time = _parse_timestamp(current_latest["observation"]["received_at"])
+            if new_received_time >= old_received_time:
+                next_state["latest"][observation_identity] = revision_record
+
+    if added_count == 0:
+        return next_state, {
+            "added_count": 0,
+            "duplicate_count": duplicate_count,
+            "snapshot_id": next_state["snapshot_id"],
+        }
+
+    next_state["published_at"] = published_at
+    state_without_id = dict(next_state)
+    state_without_id.pop("snapshot_id", None)
+    canonical_state = json.dumps(state_without_id, sort_keys=True, separators=(",", ":"))
+    next_state["snapshot_id"] = hashlib.sha256(canonical_state.encode("utf-8")).hexdigest()
+    return next_state, {
+        "added_count": added_count,
+        "duplicate_count": duplicate_count,
+        "snapshot_id": next_state["snapshot_id"],
+    }
 
 
 def receipt_freshness_state(observation, checked_at, maximum_receipt_age_seconds, calendar_state):

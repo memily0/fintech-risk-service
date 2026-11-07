@@ -63,7 +63,7 @@ class SavedReportTests(unittest.TestCase):
         report = self.create()
         self.assertEqual(report["review"]["review"]["note"], NOTE)
         self.assertEqual(report["data_snapshot_id"], self.snapshot)
-        self.assertEqual(len(report["observations"]), 12)
+        self.assertEqual(len(report["observations"]), 15)
         self.assertTrue(all(row["observation"]["is_synthetic"] for row in report["observations"]))
         self.assertTrue(all(row["observation"]["published_at"] is None for row in report["observations"]))
         self.assertFalse(report["production_ready"])

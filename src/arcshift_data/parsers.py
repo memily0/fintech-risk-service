@@ -5,9 +5,11 @@ files, guess unknown dimension codes, or grant permission to use a source.
 """
 
 import calendar
+import csv
 from datetime import datetime
 import hashlib
 from html.parser import HTMLParser
+import io
 import json
 import math
 import xml.etree.ElementTree as ElementTree
@@ -77,8 +79,14 @@ def _base_observation(
     raw_payload,
     dimensions,
     is_synthetic,
+    source_timezone="Europe/Moscow",
+    published_at=None,
 ):
-    _parse_received_time(received_at)
+    received_time = _parse_received_time(received_at)
+    if published_at is not None:
+        published_time = _parse_received_time(published_at)
+        if published_time > received_time:
+            raise ValueError("published_at cannot follow received_at")
     if not isinstance(is_synthetic, bool):
         raise ValueError("is_synthetic must be explicitly true or false")
     return {
@@ -92,10 +100,10 @@ def _base_observation(
         "reference_start": reference_start,
         "reference_end": reference_end,
         "effective_date": effective_date,
-        "published_at": None,
-        "publication_status": "unknown",
+        "published_at": published_at,
+        "publication_status": "known" if published_at is not None else "unknown",
         "received_at": received_at,
-        "source_timezone": "Europe/Moscow",
+        "source_timezone": source_timezone,
         "snapshot_id": snapshot_id,
         "receipt_sha256": hashlib.sha256(raw_payload).hexdigest(),
         "dimensions": dimensions,
@@ -324,3 +332,178 @@ def parse_rosstat_cpi_json(
             is_synthetic=is_synthetic,
         )
     ]
+
+
+def _local_name(tag):
+    return tag.rsplit("}", 1)[-1]
+
+
+def parse_cbr_key_rate_xml(raw_payload, received_at, snapshot_id, is_synthetic):
+    """Parse genuine CBR DailyInfo KeyRate rows without a refinancing fallback."""
+    try:
+        root = ElementTree.fromstring(raw_payload)
+    except (ElementTree.ParseError, TypeError) as error:
+        raise ValueError("Key-rate payload is not valid XML") from error
+
+    observations = []
+    seen_dates = set()
+    for row in root.iter():
+        children = {_local_name(child.tag): child.text for child in row}
+        if "DT" not in children or "Rate" not in children:
+            continue
+        try:
+            effective_date = datetime.fromisoformat(children["DT"].strip().replace("Z", "+00:00")).date()
+        except (AttributeError, ValueError) as error:
+            raise ValueError("Key-rate row has an invalid DT") from error
+        if effective_date.isoformat() < "2013-09-17":
+            raise ValueError("Genuine key-rate history cannot start before 2013-09-17")
+        if effective_date in seen_dates:
+            raise ValueError("Key-rate payload contains a duplicate effective date")
+        seen_dates.add(effective_date)
+
+        rate = _parse_number(children["Rate"], "KeyRate Rate")
+        if rate <= 0 or rate > 100:
+            raise ValueError("KeyRate Rate must be within (0, 100]")
+        date_text = effective_date.isoformat()
+        observations.append(
+            _base_observation(
+                series_id="ru.policy.cbr.key_rate",
+                resource_id="cbr:DailyInfo:KeyRate",
+                units="percent_per_annum",
+                value=rate,
+                reference_start=date_text,
+                reference_end=date_text,
+                effective_date=date_text,
+                received_at=received_at,
+                snapshot_id=snapshot_id,
+                raw_payload=raw_payload,
+                dimensions={"rate_type": "key_rate"},
+                is_synthetic=is_synthetic,
+            )
+        )
+    if not observations:
+        raise ValueError("Key-rate payload contains no DailyInfo KeyRate rows")
+    return observations
+
+
+def parse_moex_imoex_json(
+    raw_payload,
+    received_at,
+    snapshot_id,
+    is_synthetic,
+    published_at=None,
+):
+    """Parse MOEX ISS IMOEX history rows by named fields."""
+    try:
+        payload = json.loads(raw_payload.decode("utf-8"))
+    except (AttributeError, UnicodeDecodeError, json.JSONDecodeError) as error:
+        raise ValueError("IMOEX payload is not valid UTF-8 JSON") from error
+    history = payload.get("history")
+    if not isinstance(history, dict):
+        raise ValueError("IMOEX payload has no history block")
+    columns = history.get("columns")
+    rows = history.get("data")
+    if not isinstance(columns, list) or not isinstance(rows, list):
+        raise ValueError("IMOEX history columns and data must be lists")
+    required = {"SECID", "TRADEDATE", "CLOSE"}
+    if not required.issubset(columns) or len(columns) != len(set(columns)):
+        raise ValueError("IMOEX history must contain unique SECID, TRADEDATE and CLOSE columns")
+
+    observations = []
+    seen_dates = set()
+    for values in rows:
+        if not isinstance(values, list) or len(values) != len(columns):
+            raise ValueError("IMOEX history row does not match its columns")
+        row = dict(zip(columns, values))
+        if row["SECID"] != "IMOEX":
+            raise ValueError("IMOEX payload contains another security")
+        try:
+            trade_date = datetime.strptime(row["TRADEDATE"], "%Y-%m-%d").date().isoformat()
+        except (TypeError, ValueError) as error:
+            raise ValueError("IMOEX TRADEDATE must use YYYY-MM-DD") from error
+        if trade_date in seen_dates:
+            raise ValueError("IMOEX payload contains a duplicate trading date")
+        seen_dates.add(trade_date)
+        close = _parse_number(row["CLOSE"], "IMOEX CLOSE")
+        if close <= 0:
+            raise ValueError("IMOEX CLOSE must be positive")
+        observations.append(
+            _base_observation(
+                series_id="ru.equity.imoex.close",
+                resource_id="moex:stock:index:IMOEX:history:CLOSE",
+                units="index_points",
+                value=close,
+                reference_start=trade_date,
+                reference_end=trade_date,
+                effective_date=None,
+                received_at=received_at,
+                snapshot_id=snapshot_id,
+                raw_payload=raw_payload,
+                dimensions={"security": "IMOEX", "field": "CLOSE"},
+                is_synthetic=is_synthetic,
+                published_at=published_at,
+            )
+        )
+    if not observations:
+        raise ValueError("IMOEX payload contains no history rows")
+    return observations
+
+
+def parse_cboe_vix_csv(
+    raw_payload,
+    received_at,
+    snapshot_id,
+    is_synthetic,
+    published_at=None,
+):
+    """Parse the official Cboe VIX history CSV and keep daily CLOSE only."""
+    try:
+        text = raw_payload.decode("utf-8-sig")
+    except (AttributeError, UnicodeDecodeError) as error:
+        raise ValueError("VIX payload must be UTF-8 CSV bytes") from error
+    reader = csv.DictReader(io.StringIO(text))
+    expected = {"DATE", "OPEN", "HIGH", "LOW", "CLOSE"}
+    if reader.fieldnames is None or {name.strip().upper() for name in reader.fieldnames} != expected:
+        raise ValueError("VIX CSV must contain DATE, OPEN, HIGH, LOW and CLOSE")
+
+    observations = []
+    seen_dates = set()
+    for raw_row in reader:
+        row = {key.strip().upper(): value for key, value in raw_row.items()}
+        raw_date = row["DATE"].strip()
+        trade_date = None
+        for date_format in ("%m/%d/%Y", "%Y-%m-%d"):
+            try:
+                trade_date = datetime.strptime(raw_date, date_format).date().isoformat()
+                break
+            except ValueError:
+                pass
+        if trade_date is None:
+            raise ValueError("VIX DATE must use MM/DD/YYYY or YYYY-MM-DD")
+        if trade_date in seen_dates:
+            raise ValueError("VIX CSV contains a duplicate trading date")
+        seen_dates.add(trade_date)
+        close = _parse_number(row["CLOSE"], "VIX CLOSE")
+        if close <= 0:
+            raise ValueError("VIX CLOSE must be positive")
+        observations.append(
+            _base_observation(
+                series_id="global.volatility.cboe.vix.close",
+                resource_id="cboe:VIX:daily_close",
+                units="index_points",
+                value=close,
+                reference_start=trade_date,
+                reference_end=trade_date,
+                effective_date=None,
+                received_at=received_at,
+                snapshot_id=snapshot_id,
+                raw_payload=raw_payload,
+                dimensions={"index": "VIX", "field": "CLOSE"},
+                is_synthetic=is_synthetic,
+                source_timezone="America/New_York",
+                published_at=published_at,
+            )
+        )
+    if not observations:
+        raise ValueError("VIX CSV contains no rows")
+    return observations

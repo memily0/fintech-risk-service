@@ -53,7 +53,7 @@ async function main() {
 
     await page.locator('[data-view="history"]').click();
     await page.locator("#history-rows tr").first().waitFor();
-    assert.equal(await page.locator("#history-series option").count(), 7);
+    assert.equal(await page.locator("#history-series option").count(), 10);
     assert.equal(await page.locator("#history-rows tr").count(), 3);
     assert.ok((await page.locator("#history-rows").textContent()).includes("Неизвестно"));
     await page.locator("#history-revisions").check();
@@ -143,7 +143,7 @@ async function main() {
       await download.saveAs(path.join(temporary, "saved-report." + extension.toLowerCase()));
     }
     const captured = JSON.parse(fs.readFileSync(path.join(temporary, "saved-report.json"), "utf8"));
-    assert.equal(captured.review.review.note, note); assert.equal(captured.observations.length, 12);
+    assert.equal(captured.review.review.note, note); assert.equal(captured.observations.length, 15);
     assert.ok(fs.readFileSync(path.join(temporary, "saved-report.pdf")).subarray(0, 4).toString() === "%PDF");
     if (evidence) { await page.screenshot({ path: path.join(evidence, "desktop-saved-report.png"), fullPage: true }); fs.copyFileSync(path.join(temporary, "saved-report.pdf"), path.join(evidence, "saved-report.pdf")); }
     await page.locator('[data-view="reviews"]').click();

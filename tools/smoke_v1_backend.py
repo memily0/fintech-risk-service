@@ -62,7 +62,7 @@ def check_once(database_path, extra_check=None):
         if demo["score_kind"] != "synthetic_uncalibrated_score":
             raise RuntimeError("Demo score lost its synthetic label")
         market = get("/api/v1/market/series")
-        if len(market["series"]) != 7 or market["validity_status"] != "historical_demo" or market["source_rights_status"] != "not_admitted":
+        if len(market["series"]) != 10 or market["validity_status"] != "historical_demo" or market["source_rights_status"] != "not_admitted":
             raise RuntimeError("Market history lost its synthetic boundary")
         history = get("/api/v1/market/series/ru.fx.cbr.usd_rub.official/history?include_revisions=true")
         if history["total"] != 4 or history["observations"][-1]["observation"]["value"] != 81.2 or any(row["observation"]["published_at"] is not None for row in history["observations"]):

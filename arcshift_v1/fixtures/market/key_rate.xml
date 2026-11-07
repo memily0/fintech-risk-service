@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- SYNTHETIC TEST VALUES. This is not a provider response. -->
+<KeyRateResult>
+  <KeyRate>
+    <KR><DT>2026-11-05T00:00:00+03:00</DT><Rate>14.0</Rate></KR>
+  </KeyRate>
+</KeyRateResult>

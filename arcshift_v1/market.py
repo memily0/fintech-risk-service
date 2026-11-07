@@ -10,7 +10,16 @@ from tempfile import TemporaryDirectory
 import time
 from typing import Annotated, Literal
 
-from arcshift_data import JsonObservationStore, load_source_registry, parse_cbr_currency_xml, parse_cbr_curve_html, parse_rosstat_cpi_json
+from arcshift_data import (
+    JsonObservationStore,
+    load_source_registry,
+    parse_cboe_vix_csv,
+    parse_cbr_currency_xml,
+    parse_cbr_curve_html,
+    parse_cbr_key_rate_xml,
+    parse_moex_imoex_json,
+    parse_rosstat_cpi_json,
+)
 from arcshift_data.parsers import CURRENCY_SERIES, CURVE_SERIES
 from pydantic import AwareDatetime, Field, ValidationError, field_validator, model_validator
 
@@ -26,6 +35,9 @@ POSITIVE = Annotated[int, Field(ge=1, strict=True)]
 SERIES_BINDINGS = {row["series_id"]: (row["resource_id"], row["units"]) for row in CURRENCY_SERIES.values()}
 SERIES_BINDINGS.update({row[0]: (row[1], "percent_per_annum") for row in CURVE_SERIES.values()})
 SERIES_BINDINGS["ru.prices.rosstat.cpi_yoy"] = ("rosstat:11521100300010200001:selection_pending", "percent_YoY")
+SERIES_BINDINGS["ru.policy.cbr.key_rate"] = ("cbr:DailyInfo:KeyRate", "percent_per_annum")
+SERIES_BINDINGS["ru.equity.imoex.close"] = ("moex:stock:index:IMOEX:history:CLOSE", "index_points")
+SERIES_BINDINGS["global.volatility.cboe.vix.close"] = ("cboe:VIX:daily_close", "index_points")
 
 
 class Observation(ContractModel):
@@ -42,7 +54,7 @@ class Observation(ContractModel):
     published_at: AwareDatetime | None
     publication_status: Literal["unknown", "known"]
     received_at: AwareDatetime
-    source_timezone: Literal["Europe/Moscow"]
+    source_timezone: Literal["Europe/Moscow", "America/New_York"]
     snapshot_id: str
     receipt_sha256: HEX
     dimensions: dict[str, str | int]
@@ -167,6 +179,9 @@ def fixture_state():
         observations.extend(parse_cbr_currency_xml((FIXTURES / filename).read_bytes(), currency, received, source_snapshot, True))
     observations.extend(parse_cbr_curve_html((FIXTURES / "curve.html").read_bytes(), received, source_snapshot, True))
     observations.extend(parse_rosstat_cpi_json((FIXTURES / "cpi.json").read_bytes(), {"territory": "SYNTHETIC_RU", "coverage": "SYNTHETIC_ALL_ITEMS", "comparison": "SYNTHETIC_YEAR_AGO", "frequency": "SYNTHETIC_MONTHLY"}, received, source_snapshot, True))
+    observations.extend(parse_cbr_key_rate_xml((FIXTURES / "key_rate.xml").read_bytes(), received, source_snapshot, True))
+    observations.extend(parse_moex_imoex_json((FIXTURES / "imoex.json").read_bytes(), received, source_snapshot, True))
+    observations.extend(parse_cboe_vix_csv((FIXTURES / "vix.csv").read_bytes(), received, source_snapshot, True))
     # Exercise the contributor's real revision store before publishing a read snapshot.
     with TemporaryDirectory(prefix="arcshift-parser-fixture-") as directory:
         producer = JsonObservationStore(Path(directory) / "observations.json")
