@@ -4,20 +4,13 @@ from typing import Literal
 
 from .market import MarketStore
 from .schemas import ContractModel, SyntheticModel
+from .stress_definition import MEASUREMENT_SHA256, STRESS_DEFINITION
+from .task_definition import APPROVED_HORIZONS, LEGACY_CANDIDATE_HORIZONS, PRIMARY_HORIZON_DAYS, TASK, TARGET, TASK_CONTRACT_VERSION
 
 
 MILA_SOURCE = "eb54d6ed10e8337afc6c0221419936be07f6dadc"
-TASK = "ru_composite_stress_event_candidate_v1"
-TARGET = "future_composite_stress_event_candidate.1"
-CANDIDATE_HORIZONS = (7, 30, 90)
-TARGET_INPUTS = {
-    "vix_zscore": ("global.volatility.cboe.vix.close",),
-    "usd_rub_volatility_zscore": ("ru.fx.cbr.usd_rub.official",),
-    "imoex_volatility_zscore": ("ru.equity.imoex.close",),
-    "imoex_drawdown_zscore": ("ru.equity.imoex.close",),
-    "ofz_inversion_zscore": ("ru.curve.cbr.zero_coupon.2y", "ru.curve.cbr.zero_coupon.10y"),
-}
-BLOCKERS = ("task_and_horizons_not_approved", "sources_not_admitted", "mandatory_stress_inputs_incomplete", "evaluation_not_run", "accepted_artifact_missing")
+TARGET_INPUTS = {item.market: (item.series_id,) for item in STRESS_DEFINITION.inputs}
+BLOCKERS = ("measurement_not_validated", "sources_not_admitted", "source_calendars_not_verified", "mandatory_stress_inputs_incomplete", "evaluation_not_run", "accepted_artifact_missing")
 
 
 class InputCoverage(ContractModel):
@@ -29,7 +22,7 @@ class InputCoverage(ContractModel):
 
 
 class ModelEnvelope(SyntheticModel):
-    model_contract_version: Literal["v1-model-readiness.1"] = "v1-model-readiness.1"
+    model_contract_version: Literal["v1-model-readiness.3"] = "v1-model-readiness.3"
     production_ready: Literal[False] = False
     data_mode: Literal["synthetic"] = "synthetic"
     source_rights_status: Literal["not_admitted"] = "not_admitted"
@@ -37,13 +30,21 @@ class ModelEnvelope(SyntheticModel):
 
 
 class ModelStatus(ModelEnvelope):
-    task_id: Literal["ru_composite_stress_event_candidate_v1"] = TASK
-    target_definition_id: Literal["future_composite_stress_event_candidate.1"] = TARGET
+    task_id: Literal["ru_market_stress_onset_v1"] = TASK
+    task_contract_version: Literal["v1-task.2"] = TASK_CONTRACT_VERSION
+    task_scope_status: Literal["user_confirmed"] = "user_confirmed"
+    target_definition_id: Literal["ru_domestic_stress_onset.1"] = TARGET
+    target_measurement_status: Literal["design_frozen_not_validated"] = STRESS_DEFINITION.status
+    measurement_sha256: str = MEASUREMENT_SHA256
     source_commit: Literal["eb54d6ed10e8337afc6c0221419936be07f6dadc"] = MILA_SOURCE
+    source_commit_scope: Literal["imported_temporal_core_only"] = "imported_temporal_core_only"
     status: Literal["not_admitted"] = "not_admitted"
     geography: Literal["RU"] = "RU"
-    candidate_horizons_days: tuple[Literal[7, 30, 90], ...] = CANDIDATE_HORIZONS
-    approved_horizons_days: tuple[()] = ()
+    candidate_horizons_days: tuple[Literal[7, 30, 90], ...] = LEGACY_CANDIDATE_HORIZONS
+    candidate_horizons_scope: Literal["legacy_inventory_not_serving_approval"] = "legacy_inventory_not_serving_approval"
+    primary_horizon_days: Literal[30] = PRIMARY_HORIZON_DAYS
+    approved_horizons_days: tuple[Literal[30]] = APPROVED_HORIZONS
+    horizon_approval_scope: Literal["business_task_not_model_admission"] = "business_task_not_model_admission"
     accepted_artifact_available: Literal[False] = False
     calibration_status: Literal["not_established"] = "not_established"
     coverage_scope: Literal["raw_target_inputs_only_not_feature_readiness"] = "raw_target_inputs_only_not_feature_readiness"
@@ -75,8 +76,8 @@ def current_signal(store, *, geography, horizon_days, task_id):
     unsupported = []
     if geography != "RU":
         unsupported.append("geography_not_supported")
-    if horizon_days not in CANDIDATE_HORIZONS:
-        unsupported.append("horizon_not_supported")
+    if horizon_days not in APPROVED_HORIZONS:
+        unsupported.append("horizon_not_approved")
     if task_id != TASK:
         unsupported.append("task_not_supported")
     return CurrentSignal(data_snapshot_id=status.data_snapshot_id, task_id=task_id, geography=geography, horizon_days=horizon_days, state="unsupported" if unsupported else "unavailable", reasons=tuple(unsupported) if unsupported else status.blockers)

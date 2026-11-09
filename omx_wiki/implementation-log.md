@@ -153,3 +153,15 @@
   - 7d latest probability `0.010`, regime `Normal`, mean ROC-AUC `0.842`;
   - 30d latest probability `0.092`, regime `Normal`, mean ROC-AUC `0.747`;
   - 90d latest probability `0.251`, regime `Watch`, mean ROC-AUC `0.618`.
+
+## [2026-11-09] V1 | local acceptance checkpoint
+
+- Recorded the approved [30-day onset task](../docs/v1_task_definition.md)
+  and the frozen [domestic stress measurement](../docs/v1_stress_measurement.md).
+  The API and UI expose their versions and the unavailable prediction state.
+- Extended `tools/smoke_v1_auth.py` to verify a saved report across a process
+  restart, all three export formats, authenticated cross-user denial and
+  replay of the revoked session cookie.
+- Verified a clean source copy with fresh locked environments, the installed
+  wheel outside the checkout, and the browser workflow. Recorded commands,
+  results and release-gate boundaries in [local acceptance](../docs/v1_local_acceptance.md).

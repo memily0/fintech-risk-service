@@ -21,6 +21,8 @@ class PreparedValidation:
     target_definition_id: str = TARGET_DEFINITION
     synthetic: bool = True
     model_quality_validated: bool = False
+    calendar_snapshot_id: str | None = None
+    measurement_sha256: str | None = None
 
 
 def calendar_date(value, name):

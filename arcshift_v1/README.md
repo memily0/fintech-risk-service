@@ -151,12 +151,15 @@ Do not replace these examples with real user or provider data.
 .venv-v1/bin/python -m pip check
 ```
 
-The smoke check starts two successive temporary servers on free loopback ports,
+The backend smoke starts two successive temporary servers on free loopback ports,
 checks real HTTP responses, and verifies fixture/market snapshots and migration
-history survive restart without duplication. Both child processes stop, and
-the temporary test database is removed. It does not touch your default runtime
-database or leave a public server running. Tests use synthetic examples only, not the 40 V1 acceptance
-scenarios or a model evaluation. The dependency lock was resolved/tested on
+history survive restart without duplication. The auth smoke captures a local
+review and selected synthetic market history in a saved report, updates the
+review, then checks the original report and its three export formats after a
+process restart. It also checks cross-user denial and explicit reuse of a
+revoked cookie. Both smoke checks clean up their servers and temporary SQLite
+databases. The [local acceptance record](../docs/v1_local_acceptance.md) lists
+the scenarios covered. The dependency lock was resolved/tested on
 Python 3.14.0, separately from legacy requirements.txt. It pins versions,
 not wheel hashes, and is not production dependency/security acceptance.
 
@@ -199,11 +202,17 @@ Mila's unchanged temporal core is integrated as optional `arcshift_model` from
 temporal correctness from a trained/admitted model. The legacy trainer and
 weights remain unchanged and are never loaded by this API.
 
-- `GET /api/v1/models/status`: candidate task, raw-target input coverage,
-  unapproved horizons, calibration/artifact status and current blockers.
+- `GET /api/v1/models/task`: the approved business question, independent of
+  market snapshot availability. [Task passport](../docs/v1_task_definition.md).
+- `GET /api/v1/models/status`: approved RU market-stress onset task with a
+  primary 30-calendar-day horizon; frozen but unvalidated measurement, raw-target input
+  coverage, calibration/artifact status and current blockers.
+- `GET /api/v1/models/measurement`: the versioned [domestic stress definition](../docs/v1_stress_measurement.md)
+  and its digest. This endpoint publishes no market data or computed signal.
 - `GET /api/v1/signals/current?geography=RU&horizon_days=30`: always null signal
   while admission is missing; unsupported tasks/countries/horizons are distinct.
-- The Model view uses `v1-model-readiness.1`, not a fitted-history proxy.
+- The Model view uses `v1-model-readiness.3`, not a fitted-history proxy.
+  Legacy 7/90-day candidates and the old future-presence task are unsupported.
 
 API startup and status requests do not import pandas, NumPy, sklearn or joblib.
 Optional temporal checks use a separate environment, from the repository root:
@@ -215,11 +224,19 @@ python3 -m venv .venv-validation
 ```
 
 The core suite deliberately excludes this optional subdirectory. Current
-counts are 149 core/data/API tests and 18 optional temporal tests. The temporal
+counts are 171 core/data/API tests and 60 optional temporal/measurement tests. The temporal
 bridge accepts only synthetic standardized components with explicit snapshot,
 threshold, horizon and outcome as-of date. It prepares labels/train masks; it
 does not implement point-in-time feature construction, a frozen M04 run,
 calibration, model fitting, accepted artifacts or a training runner.
+
+`arcshift_model.measurement.measure_stress` implements the frozen domestic
+definition on synthetic observations and explicit calendars; `prepared_onset`
+passes the matching 30-day labels and policy identity to temporal validation.
+It is not imported by the API and does not admit any source, fit or serve a
+model. The older five-component `prepare_onset_validation` remains a separate
+synthetic prototype with its old target ID; the imported temporal core remains
+unchanged.
 
 ## Saved Reports
 

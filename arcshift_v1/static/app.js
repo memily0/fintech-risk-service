@@ -5,8 +5,8 @@ const state = { view: "monitor", scenarios: [], selected: "historical_demo", use
 Object.assign(state, { market: null, history: null, historyGeneration: 0, historyLoading: false });
 Object.assign(state, { model: null, signal: null, modelGeneration: 0, modelLoading: false });
 Object.assign(state, { reports: [], report: null, reportId: null, reportLoading: false, moreReports: false });
-const blockerLabels = { task_and_horizons_not_approved: "Задача и горизонты не утверждены", sources_not_admitted: "Источники не допущены для модели", mandatory_stress_inputs_incomplete: "Обязательные входы отсутствуют", evaluation_not_run: "Оценка качества не выполнена", accepted_artifact_missing: "Принятый артефакт модели отсутствует" };
-const componentLabels = { vix_zscore: "VIX", usd_rub_volatility_zscore: "Волатильность USD/RUB", imoex_volatility_zscore: "Волатильность IMOEX", imoex_drawdown_zscore: "Просадка IMOEX", ofz_inversion_zscore: "Инверсия кривой ОФЗ 10Y–2Y" };
+const blockerLabels = { measurement_not_validated: "Индекс не проверен на реальных данных", sources_not_admitted: "Источники не допущены для модели", source_calendars_not_verified: "Календари источников не подтверждены", mandatory_stress_inputs_incomplete: "Обязательные входы отсутствуют", evaluation_not_run: "Оценка качества модели не выполнена", accepted_artifact_missing: "Принятый артефакт модели отсутствует" };
+const componentLabels = { fx: "Валюта: волатильность USD/RUB", equity: "Акции: волатильность и просадка IMOEX", rates: "Ставки: рост доходности ОФЗ 10Y" };
 const seriesLabels = { "ru.fx.cbr.usd_rub.official": "USD/RUB · условный курс", "ru.fx.cbr.eur_rub.official": "EUR/RUB · условный курс", "ru.prices.rosstat.cpi_yoy": "Инфляция · условный CPI YoY", "ru.curve.cbr.zero_coupon.1y": "Кривая ОФЗ · условные 1 год", "ru.curve.cbr.zero_coupon.2y": "Кривая ОФЗ · условные 2 года", "ru.curve.cbr.zero_coupon.5y": "Кривая ОФЗ · условные 5 лет", "ru.curve.cbr.zero_coupon.10y": "Кривая ОФЗ · условные 10 лет" };
 const unitLabels = { RUB_per_USD: "₽ / USD", RUB_per_EUR: "₽ / EUR", percent_per_annum: "% годовых", percent_YoY: "% г/г" };
 const labels = { historical_demo: "Исторический пример", loading: "Получение данных", empty: "История отсутствует", stale: "Данные устарели", unsupported: "Не поддерживается", error: "Источник недоступен" };
@@ -268,7 +268,9 @@ function renderModel() {
   const metadata = $("model-metadata"), blockers = $("model-blockers"), inputs = $("model-inputs"); metadata.replaceChildren(); blockers.replaceChildren(); inputs.replaceChildren();
   $("current-signal-state").textContent = state.modelLoading ? "Проверка статуса" : "Недоступен";
   if (!state.model) return;
-  metadata.append(detailRow("Задача кандидата", "Будущий пороговый стресс ArcShift"), detailRow("Определение цели", state.model.target_definition_id, true), detailRow("Горизонты-кандидаты", state.model.candidate_horizons_days.join(" / ") + " дней"), detailRow("Утверждённые горизонты", "Нет"), detailRow("Калибровка", "Не установлена"), detailRow("Снимок данных", state.model.data_snapshot_id, true), detailRow("Модельный контракт", state.model.model_contract_version, true));
+  const definition = state.model.measurement;
+  const threshold = definition.segment_threshold.toLocaleString("ru-RU", { minimumFractionDigits: 2 });
+  metadata.append(detailRow("Задача", "Новый эпизод рыночного стресса в России"), detailRow("Постановка задачи", "Утверждена; модель не допущена"), detailRow("Горизонт постановки", state.model.primary_horizon_days + " календарных дней"), detailRow("Условие прогноза", "Только при известном отсутствии стресса"), detailRow("Измерение цели", "Методика зафиксирована; не валидирована"), detailRow("Условие стресса", `${definition.required_segments} из ${definition.mandatory_segments.length} сегментов с рангом от ${threshold}`), detailRow("Отсечка данных", `${String(definition.cutoff_hour).padStart(2, "0")}:00 МСК; данные за предыдущие даты`), detailRow("Определение цели", state.model.target_definition_id, true), detailRow("Калибровка", "Не установлена"), detailRow("Снимок данных", state.model.data_snapshot_id, true), detailRow("Модельный контракт", state.model.model_contract_version, true));
   for (const reason of state.model.blockers) blockers.append(node("li", "", blockerLabels[reason] || reason));
   for (const item of state.model.input_coverage) {
     const row = node("div", "model-input-row"), name = node("div");
@@ -280,10 +282,11 @@ async function loadModel() {
   const generation = ++state.modelGeneration;
   state.modelLoading = true; state.model = null; state.signal = null; renderModel();
   try {
-    const [profile, signal] = await Promise.all([api("/api/v1/models/status"), api("/api/v1/signals/current?horizon_days=" + $("model-horizon").value)]);
+    const [profile, signal, measurement] = await Promise.all([api("/api/v1/models/status"), api("/api/v1/signals/current?horizon_days=" + $("model-horizon").value), api("/api/v1/models/measurement")]);
     if (profile.data_snapshot_id !== signal.data_snapshot_id) throw new Error("Версии данных статуса и сигнала различаются. Обновите проверку.");
     if (signal.signal !== null || profile.accepted_artifact_available !== false) throw new Error("Ответ не соответствует текущему недопущенному model contract.");
-    if (generation === state.modelGeneration) { state.model = profile; state.signal = signal; }
+    if (profile.task_id !== signal.task_id || profile.measurement_sha256 !== measurement.measurement_sha256 || profile.target_definition_id !== measurement.definition.target_definition_id) throw new Error("Версии задачи и методики различаются. Обновите проверку.");
+    if (generation === state.modelGeneration) { state.model = { ...profile, measurement: measurement.definition }; state.signal = signal; }
   } finally { if (generation === state.modelGeneration) { state.modelLoading = false; renderModel(); } }
 }
 async function loadPrivate(append = false) {

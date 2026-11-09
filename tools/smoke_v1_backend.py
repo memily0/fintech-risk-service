@@ -68,6 +68,12 @@ def check_once(database_path, extra_check=None):
         if history["total"] != 4 or history["observations"][-1]["observation"]["value"] != 81.2 or any(row["observation"]["published_at"] is not None for row in history["observations"]):
             raise RuntimeError("Parser history or unknown publication metadata changed")
         profile = get("/api/v1/models/status")
+        task = get("/api/v1/models/task")
+        measurement = get("/api/v1/models/measurement")
+        if task["task_id"] != profile["task_id"] or task["primary_horizon_days"] != 30 or task["measurement_status"] != "design_frozen_not_validated" or task["production_ready"]:
+            raise RuntimeError("Business task approval lost its model-admission boundary")
+        if profile["measurement_sha256"] != measurement["measurement_sha256"] or measurement["definition"]["empirical_validity_established"]:
+            raise RuntimeError("Measurement contract mismatch or unjustified empirical validation")
         current = get("/api/v1/signals/current")
         if profile["accepted_artifact_available"] or current["signal"] is not None or current["state"] != "unavailable" or profile["data_snapshot_id"] != current["data_snapshot_id"]:
             raise RuntimeError("Unapproved model unexpectedly served a prediction")

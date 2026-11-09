@@ -68,12 +68,17 @@ async function main() {
 
     await page.locator('[data-view="model"]').click();
     await page.locator(".model-input-row").first().waitFor();
-    assert.equal(await page.locator(".model-input-row").count(), 5);
+    assert.equal(await page.locator(".model-input-row").count(), 3);
     assert.equal(await page.locator("#current-signal-state").textContent(), "Недоступен");
-    assert.equal(await page.locator("#model-blockers li").count(), 5);
-    await page.locator("#model-horizon").selectOption("90");
-    await page.waitForFunction(() => document.querySelectorAll(".model-input-row").length === 5);
-    assert.equal(await page.locator("#current-signal-state").textContent(), "Недоступен");
+    assert.equal(await page.locator("#model-blockers li").count(), 6);
+    assert.equal(await page.locator("#model-horizon option").count(), 1);
+    assert.equal(await page.locator("#model-horizon").inputValue(), "30");
+    assert.ok((await page.locator("#model-metadata").textContent()).includes("Утверждена; модель не допущена"));
+    assert.ok((await page.locator("#model-metadata").textContent()).includes("30 календарных дней"));
+    assert.ok((await page.locator("#model-metadata").textContent()).includes("Новый эпизод рыночного стресса в России"));
+    assert.ok((await page.locator("#model-metadata").textContent()).includes("2 из 3 сегментов с рангом от 0,90"));
+    assert.ok((await page.locator("#model-metadata").textContent()).includes("Методика зафиксирована; не валидирована"));
+    assert.ok(!(await page.locator("#model-inputs").textContent()).includes("VIX"));
     if (evidence) await page.screenshot({ path: path.join(evidence, "desktop-model.png"), fullPage: true });
     await page.locator('[data-view="monitor"]').click();
 
