@@ -34,6 +34,10 @@ class TemporalLabels:
 
 
 def _validated_dates(dates: pd.Series) -> pd.Series:
+    if not isinstance(dates, pd.Series):
+        raise TypeError("dates must be a pandas Series with an explicit index")
+    if not dates.index.is_unique:
+        raise ValueError("dates index must be unique")
     converted = pd.to_datetime(dates, errors="coerce")
     if converted.isna().any():
         raise ValueError("dates must not contain null or unparseable values")
@@ -44,13 +48,24 @@ def _validated_dates(dates: pd.Series) -> pd.Series:
     return converted
 
 
-def _validated_nullable_events(event: pd.Series, index: pd.Index) -> pd.Series:
+def _validated_aligned_series(values: pd.Series, index: pd.Index, name: str) -> pd.Series:
+    if not isinstance(values, pd.Series):
+        raise TypeError(f"{name} must be a pandas Series with an explicit index")
+    if not values.index.is_unique:
+        raise ValueError(f"{name} index must be unique")
+    if not values.index.equals(index):
+        raise ValueError(f"{name} index must exactly match dates index")
+    return values
+
+
+def _validated_nullable_events(event: pd.Series, index: pd.Index, name: str = "event") -> pd.Series:
+    event = _validated_aligned_series(event, index, name)
     if len(event) != len(index):
-        raise ValueError("event and dates must have the same length")
-    values = pd.Series(event.array, index=index, dtype="Float64")
+        raise ValueError(f"{name} and dates must have the same length")
+    values = pd.Series(event.array, index=event.index, dtype="Float64")
     invalid = values.dropna().loc[lambda item: ~item.isin([0.0, 1.0])]
     if not invalid.empty:
-        raise ValueError("event must contain only 0, 1, boolean, or missing values")
+        raise ValueError(f"{name} must contain only 0, 1, boolean, or missing values")
     return values.astype("Int64")
 
 
@@ -98,7 +113,7 @@ def build_future_event_labels(
     if not isinstance(horizon_days, int) or isinstance(horizon_days, bool) or horizon_days <= 0:
         raise ValueError("horizon_days must be a positive integer")
 
-    converted_dates = _validated_dates(pd.Series(dates, index=dates.index))
+    converted_dates = _validated_dates(dates)
     nullable_event = _validated_nullable_events(event, converted_dates.index)
     available_through = (
         converted_dates.max()
@@ -147,7 +162,8 @@ def temporal_training_mask(
 ) -> pd.Series:
     """Select only known labels whose complete window ends before cutoff."""
 
-    converted_dates = _validated_dates(pd.Series(dates, index=dates.index))
+    converted_dates = _validated_dates(dates)
+    label_end = _validated_aligned_series(label_end, converted_dates.index, "label_end")
     converted_ends = pd.to_datetime(label_end, errors="coerce")
     if len(target) != len(converted_dates) or len(converted_ends) != len(converted_dates):
         raise ValueError("dates, target, and label_end must have the same length")
@@ -158,7 +174,7 @@ def temporal_training_mask(
     cutoff_timestamp = pd.Timestamp(cutoff)
     if pd.isna(cutoff_timestamp):
         raise ValueError("cutoff must be a valid timestamp")
-    nullable_target = _validated_nullable_events(target, converted_dates.index)
+    nullable_target = _validated_nullable_events(target, converted_dates.index, "target")
     return (
         (converted_dates < cutoff_timestamp)
         & (converted_ends < cutoff_timestamp)

@@ -3,6 +3,11 @@
 Дата: 2026-11-05. Ветка: `v1/integration-yaroslav`.
 Источник: `v1/model-mila`, `eb54d6ed10e8337afc6c0221419936be07f6dadc`.
 
+**Дополнение 09.11.2026:** новый proposed evaluation manifest и model-часть
+Q01 описаны в [протоколе оценки](v1_model_evaluation_protocol.md). Он относится
+к `ru-domestic-market-stress.1` / `ru_domestic_stress_onset.1`, требует
+отдельный as-of snapshot на каждый fold и не разрешает M04.
+
 **Дополнение 06.11.2026:** [постановка задачи](v1_task_definition.md)
 согласована: новый рыночный стресс России, 30 календарных дней. Текущее API
 `v1-model-readiness.2` отличает business approval от допуска модели;

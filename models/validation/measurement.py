@@ -23,6 +23,7 @@ class MeasuredStress:
     calendar_snapshot_id: str
     frame: pd.DataFrame
     native_frames: dict[str, pd.DataFrame]
+    available_through: pd.Timestamp
     measurement_id: str = POLICY.measurement_id
     measurement_sha256: str = MEASUREMENT_SHA256
     synthetic: bool = True
@@ -196,7 +197,13 @@ def measure_stress(observations, calendar, *, data_snapshot_id, calendar_snapsho
     result["complete_window"] = labels.complete_window
     result["episode_start"] = (result.stress_event.eq(1) & result.stress_event.shift(1).eq(0)).astype("boolean")
     result.loc[result.stress_event.isna() | result.stress_event.shift(1).isna(), "episode_start"] = pd.NA
-    return MeasuredStress(data_snapshot_id=data_snapshot_id, calendar_snapshot_id=calendar_snapshot_id, frame=result, native_frames=native_frames)
+    return MeasuredStress(
+        data_snapshot_id=data_snapshot_id,
+        calendar_snapshot_id=calendar_snapshot_id,
+        frame=result,
+        native_frames=native_frames,
+        available_through=as_of,
+    )
 
 
 def prepared_onset(measured):
@@ -207,4 +214,5 @@ def prepared_onset(measured):
         target_definition_id=POLICY.target_definition_id,
         calendar_snapshot_id=measured.calendar_snapshot_id,
         measurement_sha256=measured.measurement_sha256,
+        available_through=measured.available_through,
     )

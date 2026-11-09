@@ -23,6 +23,7 @@ class PreparedValidation:
     model_quality_validated: bool = False
     calendar_snapshot_id: str | None = None
     measurement_sha256: str | None = None
+    available_through: pd.Timestamp | None = None
 
 
 def calendar_date(value, name):
@@ -51,7 +52,12 @@ def prepare_validation(frame, *, data_snapshot_id, horizon_days, threshold, outc
     composite = build_complete_composite_stress({name: frame[name] for name in COMPONENTS}, threshold=threshold)
     labels = build_future_event_labels(dates, composite.event, horizon_days=horizon_days, outcomes_available_through=as_of)
     prepared = pd.DataFrame({"date": dates, "stress_score": composite.score, "stress_event": composite.event, "target": labels.target, "label_end": labels.label_end, "mature": labels.mature, "complete_window": labels.complete_window}, index=frame.index)
-    return PreparedValidation(data_snapshot_id=data_snapshot_id, horizon_days=horizon_days, frame=prepared)
+    return PreparedValidation(
+        data_snapshot_id=data_snapshot_id,
+        horizon_days=horizon_days,
+        frame=prepared,
+        available_through=as_of,
+    )
 
 
 def training_rows(prepared, *, cutoff):

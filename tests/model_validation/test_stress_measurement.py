@@ -7,8 +7,20 @@ import numpy as np
 import pandas as pd
 
 from arcshift_v1.stress_definition import MEASUREMENT_SHA256, STRESS_DEFINITION as POLICY
+from models.validation.evaluation import FeatureSnapshot, fold_training_batch
 from models.validation.measurement import _cutoffs, domestic_event, measure_stress, prepared_onset, prior_midrank
 from models.validation.product import training_rows
+
+
+class RecordingEstimator:
+    def __init__(self):
+        self.fit_index = None
+        self.fit_target = None
+
+    def fit(self, features, target):
+        self.fit_index = features.index.copy()
+        self.fit_target = target.copy()
+        return self
 
 
 class StressMeasurementTests(unittest.TestCase):
@@ -239,6 +251,69 @@ class StressMeasurementTests(unittest.TestCase):
         self.assertFalse(rows.empty)
         self.assertTrue(rows.onset_risk_set.all())
         self.assertTrue((rows.label_end < pd.Timestamp("2021-09-01")).all())
+
+    def test_fold_stub_fit_is_immutable_to_late_revision_and_later_snapshot(self):
+        cutoff = pd.Timestamp(self.dates[-1] + pd.Timedelta(days=1, hours=9), tz=POLICY.timezone)
+        baseline = self.run_measurement(
+            available_through=cutoff.isoformat(),
+            data_snapshot_id="synthetic-fold-baseline",
+        )
+        late_revision = self.observations.iloc[[self.row("fx", 600)]].copy()
+        late_revision["value"] = 150.0
+        late_revision["receipt_sha256"] = "c" * 64
+        late_revision["received_at"] = (
+            self.dates[600] + pd.Timedelta(days=1, hours=10)
+        ).tz_localize(POLICY.timezone).isoformat()
+        revised_rows = pd.concat([self.observations, late_revision], ignore_index=True)
+        revised = self.run_measurement(
+            revised_rows,
+            available_through=cutoff.isoformat(),
+            data_snapshot_id="synthetic-fold-with-late-revision",
+        )
+
+        estimators = []
+        batches = []
+        for measured in (baseline, revised):
+            prepared = prepared_onset(measured)
+            features = pd.DataFrame(
+                {"synthetic_feature": np.arange(len(prepared.frame), dtype=float)},
+                index=prepared.frame.index,
+            )
+            snapshot = FeatureSnapshot(
+                snapshot_id="features-" + measured.data_snapshot_id,
+                schema_id="synthetic-feature-schema.1",
+                available_through=cutoff,
+                frame=features,
+            )
+            batch = fold_training_batch(prepared, snapshot, cutoff=cutoff)
+            estimator = RecordingEstimator().fit(batch.features, batch.target)
+            estimators.append(estimator)
+            batches.append(batch)
+
+        self.assertTrue(estimators[0].fit_index.equals(estimators[1].fit_index))
+        pd.testing.assert_series_equal(estimators[0].fit_target, estimators[1].fit_target)
+        self.assertEqual(batches[0].task_id, "ru_market_stress_onset_v1")
+        self.assertEqual(batches[0].target_definition_id, POLICY.target_definition_id)
+        self.assertEqual(batches[0].horizon_days, 30)
+        self.assertTrue((batches[0].origins + pd.Timedelta(days=30) < cutoff.tz_localize(None).normalize()).all())
+
+        later = self.run_measurement(
+            revised_rows,
+            available_through="2023-01-01T12:00:00+03:00",
+            data_snapshot_id="synthetic-later-snapshot",
+        )
+        later_prepared = prepared_onset(later)
+        later_features = FeatureSnapshot(
+            snapshot_id="features-later",
+            schema_id="synthetic-feature-schema.1",
+            available_through="2023-01-01T12:00:00+03:00",
+            frame=pd.DataFrame(
+                {"synthetic_feature": np.arange(len(later_prepared.frame), dtype=float)},
+                index=later_prepared.frame.index,
+            ),
+        )
+        with self.assertRaisesRegex(ValueError, "later snapshots are forbidden"):
+            fold_training_batch(later_prepared, later_features, cutoff=cutoff)
 
 
 if __name__ == "__main__":

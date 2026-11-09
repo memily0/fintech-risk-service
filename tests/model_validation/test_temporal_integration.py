@@ -104,6 +104,56 @@ class TemporalIntegrationTests(unittest.TestCase):
         self.assertEqual(result.frame.index.tolist(), frame.index.tolist())
         self.assertEqual(result.frame.target.tolist(), [1, 1, 0, 0, pd.NA, pd.NA])
 
+    def test_event_reordering_with_original_labels_is_rejected(self):
+        dates = pd.Series(pd.date_range("2026-01-01", periods=3), index=[10, 20, 30])
+        event = pd.Series([1, 0, 0], index=dates.index, dtype="Int64").iloc[[1, 0, 2]]
+        with self.assertRaisesRegex(ValueError, "event index must exactly match dates index"):
+            build_future_event_labels(dates, event, horizon_days=1)
+
+    def test_different_or_nonunique_indexes_are_rejected(self):
+        dates = pd.Series(pd.date_range("2026-01-01", periods=3), index=[10, 20, 30])
+        with self.assertRaisesRegex(ValueError, "event index must exactly match dates index"):
+            build_future_event_labels(
+                dates,
+                pd.Series([0, 1, 0], index=[0, 1, 2], dtype="Int64"),
+                horizon_days=1,
+            )
+        duplicate_index = pd.Index([10, 10, 30])
+        with self.assertRaisesRegex(ValueError, "dates index must be unique"):
+            build_future_event_labels(
+                pd.Series(pd.date_range("2026-01-01", periods=3), index=duplicate_index),
+                pd.Series([0, 1, 0], index=duplicate_index, dtype="Int64"),
+                horizon_days=1,
+            )
+
+    def test_helper_outputs_preserve_nondefault_index(self):
+        index = pd.Index([10, 20, 30], name="row_id")
+        dates = pd.Series(pd.date_range("2026-01-01", periods=3), index=index)
+        event = pd.Series([0, 1, 0], index=index, dtype="Int64")
+        labels = build_future_event_labels(dates, event, horizon_days=1)
+        for output in (labels.target, labels.label_end, labels.mature, labels.complete_window):
+            self.assertTrue(output.index.equals(index))
+
+    def test_training_mask_rejects_reordered_target_and_label_end(self):
+        index = pd.Index([10, 20, 30])
+        dates = pd.Series(pd.date_range("2026-01-01", periods=3), index=index)
+        target = pd.Series([0, 1, 0], index=index, dtype="Int64")
+        label_end = dates + pd.Timedelta(days=1)
+        with self.assertRaisesRegex(ValueError, "target index must exactly match dates index"):
+            temporal_training_mask(
+                dates,
+                target.iloc[[1, 0, 2]],
+                label_end,
+                cutoff="2026-01-04",
+            )
+        with self.assertRaisesRegex(ValueError, "label_end index must exactly match dates index"):
+            temporal_training_mask(
+                dates,
+                target,
+                label_end.iloc[[1, 0, 2]],
+                cutoff="2026-01-04",
+            )
+
     def test_real_or_unidentified_inputs_are_not_accepted_by_synthetic_bridge(self):
         for values in ({"synthetic": False}, {"synthetic": 1}, {"data_snapshot_id": ""}):
             with self.assertRaises(ValueError):
