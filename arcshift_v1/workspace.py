@@ -19,6 +19,11 @@ TRANSITIONS = {
     "closed": {"closed"},
     "dismissed": {"dismissed"},
 }
+REVIEW_SELECT = (
+    "SELECT r.*, link.warning_id, w.data_snapshot_id, w.signal_id, w.policy_id FROM local_reviews r "
+    "LEFT JOIN local_warning_reviews link ON link.review_id=r.review_id AND link.user_id=r.user_id "
+    "LEFT JOIN local_warnings w ON w.warning_id=link.warning_id "
+)
 
 
 class WorkspaceView(SyntheticModel):
@@ -68,6 +73,10 @@ class ReviewView(WorkspaceView):
     revision: int
     created_at: int
     updated_at: int
+    warning_id: str | None = None
+    data_snapshot_id: str | None = None
+    signal_id: str | None = None
+    policy_id: str | None = None
 
 
 class ReviewList(WorkspaceView):
@@ -99,11 +108,13 @@ class WorkspaceService:
             review_id=row["review_id"], snapshot_id=row["snapshot_id"],
             scenario=DemoScenario.model_validate_json(row["scenario_json"]), status=row["status"], note=row["note"],
             revision=row["revision"], created_at=row["created_at"], updated_at=row["updated_at"],
+            warning_id=row["warning_id"], data_snapshot_id=row["data_snapshot_id"],
+            signal_id=row["signal_id"], policy_id=row["policy_id"],
         )
 
     @staticmethod
     def owned(connection, user_id, review_id):
-        row = connection.execute("SELECT * FROM local_reviews WHERE user_id=? AND review_id=?", (user_id, review_id)).fetchone()
+        row = connection.execute(REVIEW_SELECT + "WHERE r.user_id=? AND r.review_id=?", (user_id, review_id)).fetchone()
         if row is None:
             raise AuthFailure("review_not_found", 404)
         return row
@@ -121,7 +132,7 @@ class WorkspaceService:
 
     def list_reviews(self, user_id, limit, offset):
         with closing(connect(self.auth.path, readonly=True)) as connection:
-            rows = connection.execute("SELECT * FROM local_reviews WHERE user_id=? ORDER BY created_at DESC, review_id DESC LIMIT ? OFFSET ?", (user_id, limit, offset)).fetchall()
+            rows = connection.execute(REVIEW_SELECT + "WHERE r.user_id=? ORDER BY r.created_at DESC, r.review_id DESC LIMIT ? OFFSET ?", (user_id, limit, offset)).fetchall()
         return ReviewList(reviews=tuple(self.view(row) for row in rows), limit=limit, offset=offset)
 
     def create_review(self, user_id, data: CreateReview):

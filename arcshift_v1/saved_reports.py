@@ -59,7 +59,8 @@ class SavedReportService:
         self.auth = workspace.auth
 
     def create(self, user_id, data: CreateSavedReport):
-        snapshot = self.market.read()
+        review = self.workspace.report(user_id, str(data.review_id)).review
+        snapshot = self.market.read(review.data_snapshot_id)
         snapshot_id = "market-" + snapshot.snapshot_id
         if data.expected_data_snapshot_id != snapshot_id:
             raise AuthFailure("report_snapshot_conflict", 409)
@@ -89,6 +90,8 @@ class SavedReportService:
             report = SavedReport.model_validate_json(row["payload_json"])
             if str(report.report_id) != row["report_id"] or report.created_at != row["created_at"] or report.data_snapshot_id != row["data_snapshot_id"] or report.review.review.review_id != row["review_id"]:
                 raise ValueError("Report metadata mismatch")
+            if report.review.review.data_snapshot_id not in (None, report.data_snapshot_id):
+                raise ValueError("Warning and report snapshots differ")
             return report
         except (ValidationError, ValueError, TypeError, KeyError, IndexError) as error:
             raise StoreUnavailableError("Saved report unavailable") from error

@@ -13,13 +13,14 @@
 <body>
   <div class="app-shell">
     <aside class="sidebar">
-      <a class="brand" href="/" aria-label="ArcShift"><i data-lucide="activity" aria-hidden="true"></i>ArcShift</a>
+      <a class="brand" href="/" aria-label="ArcShift"><i data-lucide="activity" aria-hidden="true"></i><span>ArcShift</span></a>
       <div class="workspace-label">RISK WORKSPACE</div>
       <nav aria-label="Разделы">
         <button class="nav-button active" data-view="monitor" aria-current="page"><i data-lucide="panels-top-left"></i><span>Мониторинг</span></button>
         <button class="nav-button" data-view="history"><i data-lucide="table-2"></i><span>История рядов</span></button>
         <button class="nav-button" data-view="model"><i data-lucide="shield-check"></i><span>Модель</span></button>
         <button class="nav-button" data-view="watchlist"><i data-lucide="bookmark"></i><span>Наблюдение</span><span id="watch-count" class="count">0</span></button>
+        <button class="nav-button" data-view="warnings"><i data-lucide="bell"></i><span>Предупреждения</span></button>
         <button class="nav-button" data-view="reviews"><i data-lucide="clipboard-list"></i><span>Разборы</span><span id="review-count" class="count">0</span></button>
         <button class="nav-button" data-view="reports"><i data-lucide="files"></i><span>Отчёты</span><span id="report-count" class="count">0</span></button>
         <button class="nav-button" data-view="system"><i data-lucide="database"></i><span>Состояние системы</span></button>
@@ -45,11 +46,22 @@
           <div><span class="metric-label">Данные экрана</span><strong id="data-summary-value">6 состояний</strong><small id="data-summary-caption">Фиксированный synthetic snapshot</small></div>
         </section>
         <section id="monitor-view" class="view-section">
+          <section id="market-overview" aria-label="Обзор показателей">
+            <div class="section-toolbar"><h2>Показатели России</h2><label>График ряда<select id="overview-series" aria-label="Ряд на обзоре"></select></label></div>
+            <p id="market-status" class="detail-message" role="status"></p>
+            <div id="market-chart" class="market-chart"></div>
+            <div id="market-cards" class="market-cards"></div>
+          </section>
+          <section id="indicator-watchlist" aria-label="Личный список показателей" hidden></section>
           <div class="section-toolbar"><h2 id="list-title">Состояния данных</h2><label class="search-field"><i data-lucide="search"></i><input id="scenario-search" type="search" placeholder="Поиск" aria-label="Поиск состояний"></label></div>
           <div class="work-grid">
             <div class="scenario-list"><div class="list-head"><span>Состояние</span><span>Сигнал</span><span>Статус</span></div><div id="scenario-rows"></div><div id="list-empty" class="empty-state" hidden><i data-lucide="inbox"></i><h3>Нет записей</h3></div></div>
             <section id="scenario-detail" class="detail-panel" aria-label="Разбор состояния"></section>
           </div>
+        </section>
+        <section id="warnings-view" class="view-section" hidden>
+          <div class="section-toolbar"><h2>Очередь synthetic-предупреждений</h2><label>Личный статус<select id="warning-filter"><option value="all">Все статусы</option><option value="new">Новое</option><option value="acknowledged">Принят</option><option value="in_review">В разборе</option><option value="closed">Закрыт</option><option value="dismissed">Отклонён</option></select></label></div>
+          <div id="warning-rows"></div>
         </section>
         <section id="reviews-view" class="view-section" hidden>
           <div class="section-toolbar"><h2>Журнал разборов</h2><button id="more-reviews" class="button secondary" hidden><i data-lucide="plus"></i>Загрузить ещё</button></div>

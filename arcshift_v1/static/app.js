@@ -3,8 +3,9 @@
 const $ = (id) => document.getElementById(id);
 const state = { view: "monitor", scenarios: [], selected: "historical_demo", user: null, watchlist: [], reviews: [], review: null, health: null, authMode: "login", generation: 0, moreReviews: false };
 Object.assign(state, { market: null, history: null, historyGeneration: 0, historyLoading: false });
-Object.assign(state, { model: null, signal: null, modelGeneration: 0, modelLoading: false });
+Object.assign(state, { model: null, task: null, signal: null, modelGeneration: 0, modelLoading: false });
 Object.assign(state, { reports: [], report: null, reportId: null, reportLoading: false, moreReports: false });
+Object.assign(state, { indicators: [], warnings: [], marketHistories: {}, marketErrors: {}, marketGeneration: 0, marketLoading: true, marketError: "", historyError: "", marketCheckedAt: null });
 const blockerLabels = { measurement_not_validated: "Индекс не проверен на реальных данных", sources_not_admitted: "Источники не допущены для модели", source_calendars_not_verified: "Календари источников не подтверждены", mandatory_stress_inputs_incomplete: "Обязательные входы отсутствуют", evaluation_not_run: "Оценка качества модели не выполнена", accepted_artifact_missing: "Принятый артефакт модели отсутствует" };
 const componentLabels = { fx: "Валюта: волатильность USD/RUB", equity: "Акции: волатильность и просадка IMOEX", rates: "Ставки: рост доходности ОФЗ 10Y" };
 const seriesLabels = { "ru.fx.cbr.usd_rub.official": "USD/RUB · условный курс", "ru.fx.cbr.eur_rub.official": "EUR/RUB · условный курс", "ru.prices.rosstat.cpi_yoy": "Инфляция · условный CPI YoY", "ru.curve.cbr.zero_coupon.1y": "Кривая ОФЗ · условные 1 год", "ru.curve.cbr.zero_coupon.2y": "Кривая ОФЗ · условные 2 года", "ru.curve.cbr.zero_coupon.5y": "Кривая ОФЗ · условные 5 лет", "ru.curve.cbr.zero_coupon.10y": "Кривая ОФЗ · условные 10 лет" };
@@ -46,6 +47,8 @@ function clearPersonal() {
   $("print-report").replaceChildren(); $("review-detail").replaceChildren(); $("review-rows").replaceChildren();
   $("password-input").value = ""; $("token-input").value = "";
   state.reports = []; state.report = null; state.reportId = null; state.reportLoading = false; state.moreReports = false;
+  state.indicators = []; state.warnings = [];
+  $("warning-rows").replaceChildren(); $("indicator-watchlist").replaceChildren();
   $("report-rows").replaceChildren(); $("report-detail").replaceChildren();
 }
 async function api(path, { method = "GET", data, blob = false } = {}) {
@@ -84,24 +87,30 @@ function empty(title, signedOut = false) {
   return result;
 }
 function render() {
-  const titles = { monitor: "Мониторинг", history: "История рядов", model: "Модель", watchlist: "Наблюдение", reviews: "Разборы", reports: "Отчёты", system: "Состояние системы" };
+  const titles = { monitor: "Мониторинг", history: "История рядов", model: "Модель", watchlist: "Наблюдение", warnings: "Предупреждения", reviews: "Разборы", reports: "Отчёты", system: "Состояние системы" };
   $("page-title").textContent = titles[state.view]; document.title = "ArcShift | " + titles[state.view];
-  $("data-summary-value").textContent = state.view === "history" && state.market ? state.market.series.length + " рядов" : "6 состояний";
-  $("data-summary-caption").textContent = state.view === "history" ? "Синтетические parser fixtures" : "Фиксированный synthetic snapshot";
+  $("data-summary-value").textContent = ["monitor", "history", "watchlist"].includes(state.view) && state.market ? state.market.series.length + " рядов" : "6 состояний";
+  $("data-summary-caption").textContent = ["monitor", "history", "watchlist"].includes(state.view) ? "Синтетические parser fixtures" : "Фиксированный synthetic snapshot";
   document.querySelectorAll("[data-view]").forEach((item) => {
     const active = item.dataset.view === state.view; item.classList.toggle("active", active);
     if (active) item.setAttribute("aria-current", "page"); else item.removeAttribute("aria-current");
   });
   $("account-email").textContent = state.user?.email || "";
   $("login-button").hidden = Boolean(state.user); $("logout-button").hidden = !state.user;
-  $("watch-count").textContent = String(state.watchlist.length); $("review-count").textContent = state.reviews.length + (state.moreReviews ? "+" : "");
+  $("watch-count").textContent = String(state.indicators.length); $("review-count").textContent = state.reviews.length + (state.moreReviews ? "+" : "");
   $("report-count").textContent = state.reports.length + (state.moreReports ? "+" : "");
   $("monitor-view").hidden = !["monitor", "watchlist"].includes(state.view);
   $("reviews-view").hidden = state.view !== "reviews"; $("system-view").hidden = state.view !== "system";
   $("history-view").hidden = state.view !== "history";
   $("model-view").hidden = state.view !== "model";
   $("reports-view").hidden = state.view !== "reports";
+  $("warnings-view").hidden = state.view !== "warnings";
+  $("market-overview").hidden = state.view !== "monitor";
+  $("indicator-watchlist").hidden = state.view !== "watchlist";
   if (["monitor", "watchlist"].includes(state.view)) renderMonitor();
+  if (state.view === "monitor") renderOverview();
+  if (state.view === "watchlist") renderIndicators();
+  if (state.view === "warnings") renderWarnings();
   if (state.view === "reviews") renderReviews();
   if (state.view === "system") renderSystem();
   if (state.view === "history") renderHistory();
@@ -110,7 +119,7 @@ function render() {
   updateIcons();
 }
 function renderMonitor() {
-  $("list-title").textContent = state.view === "watchlist" ? "Личный список" : "Состояния данных";
+  $("list-title").textContent = state.view === "watchlist" ? "Прежний список сценариев данных" : "Сценарии данных";
   const search = $("scenario-search").value.toLocaleLowerCase("ru");
   const rows = state.scenarios.filter((row) => (state.view !== "watchlist" || state.watchlist.includes(row.id)) && (labels[row.id] + row.id).toLocaleLowerCase("ru").includes(search));
   const selected = rows.find((row) => row.id === state.selected) || rows[0];
@@ -182,6 +191,7 @@ function renderReview() {
   if (!review) return;
   const heading = node("div", "detail-heading"), title = node("div"); title.append(node("h2", "", labels[review.scenario.id]), node("p", "detail-subtitle", "Зафиксированный synthetic snapshot")); heading.append(title); panel.append(heading);
   const evidence = node("dl", "evidence-list"); evidence.append(detailRow("Разбор", review.review_id, true), detailRow("Snapshot", review.snapshot_id, true), detailRow("Score", review.scenario.signal ? review.scenario.signal.score.toFixed(2) + " · не калиброван" : "Недоступен")); panel.append(evidence);
+  if (review.warning_id) evidence.append(detailRow("Warning ID", review.warning_id, true), detailRow("Signal ID", review.signal_id, true), detailRow("Policy ID", review.policy_id, true), detailRow("Снимок данных предупреждения", review.data_snapshot_id, true));
   const form = node("form", "review-form"), statusLabel = node("label", "", "Статус"), select = node("select"), noteLabel = node("label", "", "Вывод аналитика"), textarea = node("textarea");
   select.name = "status"; select.id = "review-status";
   for (const value of transitions[review.status]) { const option = node("option", "", statusLabels[value]); option.value = value; option.selected = value === review.status; select.append(option); }
@@ -197,9 +207,9 @@ function renderReview() {
   const exports = node("div", "detail-actions");
   exports.append(button("Сохранить отчёт", "file-plus-2", async () => {
     if (!canLeaveReview()) return;
-    if (!state.market) throw new Error("Снимок данных недоступен.");
+    if (!review.data_snapshot_id && !state.market) throw new Error("Снимок данных недоступен.");
     const generation = state.generation;
-    const saved = await api("/api/v1/workspace/reports", { method: "POST", data: { review_id: review.review_id, expected_revision: review.revision, expected_data_snapshot_id: state.market.data_snapshot_id } });
+    const saved = await api("/api/v1/workspace/reports", { method: "POST", data: { review_id: review.review_id, expected_revision: review.revision, expected_data_snapshot_id: review.data_snapshot_id || state.market.data_snapshot_id } });
     if (generation !== state.generation) return;
     state.report = saved; state.reportId = saved.report_id; await loadPrivate(); state.view = "reports"; render(); notice("Отчёт сохранён. Версия разбора " + saved.review.review.revision + ".");
   }, "button primary"));
@@ -229,45 +239,222 @@ function renderSystem() {
   const details = $("system-details"); details.replaceChildren();
   details.append(detailRow("API", state.health?.status === "ok" ? "Доступен" : "Недоступен"), detailRow("Контракт данных", "v1-fixture.1"), detailRow("Контракт аккаунтов", "v1-local-auth.1"), detailRow("Контракт разбора", "v1-local-workspace.1"), detailRow("Контур", "Локальная synthetic-сборка"), detailRow("Источник данных", "Синтетические fixtures"), detailRow("Live-обновление", "Не подключено"), detailRow("Модель", "Не допущена"), detailRow("Публичный запуск", "Не допущен"));
 }
-function renderHistory() {
-  const select = $("history-series");
-  if (select.options.length !== (state.market?.series.length || 0)) {
-    const selected = select.value; select.replaceChildren();
-    for (const series of state.market?.series || []) { const option = node("option", "", seriesLabels[series.series_id] || series.series_id); option.value = series.series_id; select.append(option); }
-    if ([...select.options].some((option) => option.value === selected)) select.value = selected;
-    else if ([...select.options].some((option) => option.value === "ru.fx.cbr.usd_rub.official")) select.value = "ru.fx.cbr.usd_rub.official";
+function fillSeriesSelect(select) {
+  const selected = select.value; select.replaceChildren();
+  for (const series of state.market?.series || []) {
+    const option = node("option", "", seriesLabels[series.series_id] || series.series_id);
+    option.value = series.series_id; select.append(option);
   }
+  if ([...select.options].some((option) => option.value === selected)) select.value = selected;
+  else if ([...select.options].some((option) => option.value === "ru.fx.cbr.usd_rub.official")) select.value = "ru.fx.cbr.usd_rub.official";
+}
+function valueText(value) { return typeof value === "number" && Number.isFinite(value) ? value.toLocaleString("ru-RU") : "Пропуск"; }
+function dateText(value) { return value ? new Date(value).toLocaleString("ru-RU") : "Неизвестно"; }
+function latestRows(history) {
+  return (history?.observations || []).filter((revision) => revision.is_latest === true)
+    .sort((a, b) => a.observation.reference_end.localeCompare(b.observation.reference_end));
+}
+function dataStateText(history) {
+  const statuses = { loading: "Получение данных", empty: "История отсутствует", missing: "Пропуск данных", stale: "Данные устарели", market_closed: "Плановое закрытие рынка", error: "Источник недоступен", unsupported: "Не поддерживается" };
+  return statuses[history?.data_state] || statuses[history?.freshness_status] || "Свежесть не оценена";
+}
+function renderOverview() {
+  fillSeriesSelect($("overview-series"));
+  const cards = $("market-cards"); cards.replaceChildren();
+  $("market-status").textContent = state.marketLoading ? "Получение опубликованного снимка" : state.marketError || (!state.market?.series.length ? "Нет доступных рядов" : "Синтетическая история · текущий прогноз отсутствует");
+  for (const series of state.market?.series || []) {
+    const history = state.marketHistories[series.series_id], latest = latestRows(history).at(-1);
+    const card = node("article", "market-card"), metadata = node("dl", "evidence-list");
+    card.dataset.seriesId = series.series_id;
+    card.append(node("h3", "", seriesLabels[series.series_id] || series.series_id),
+      node("strong", "market-value", latest ? valueText(latest.observation.value) : "Нет актуальной ревизии"));
+    metadata.append(detailRow("Единица", unitLabels[series.units] || series.units),
+      detailRow("Дата наблюдения", latest?.observation.reference_end || "Неизвестно"),
+      detailRow("Получено", dateText(latest?.observation.received_at)),
+      detailRow("Проверка интерфейса", dateText(state.marketCheckedAt)));
+    card.append(node("p", "detail-message", state.marketErrors[series.series_id] || dataStateText(history)), metadata);
+    card.append(button("История " + (seriesLabels[series.series_id] || series.series_id), "table-2", async () => openSeries(series.series_id)));
+    if (state.user) card.append(button(state.indicators.includes(series.series_id) ? "Убрать показатель" : "Наблюдать показатель", "bookmark", async () => toggleIndicator(series.series_id)));
+    cards.append(card);
+  }
+  drawChart($("market-chart"), state.marketHistories[$("overview-series").value]);
+}
+function drawChart(container, history) {
+  container.replaceChildren();
+  const rows = latestRows(history);
+  if (!rows.some((row) => typeof row.observation.value === "number" && Number.isFinite(row.observation.value))) {
+    container.append(node("p", "detail-message", "Нет значений для графика")); return;
+  }
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("viewBox", "0 0 720 220"); svg.setAttribute("role", "img"); svg.setAttribute("aria-label", "История ряда. Пропуски разрывают линию. Значения доступны в таблице истории.");
+  const values = rows.map((row) => row.observation.value).filter((value) => typeof value === "number" && Number.isFinite(value));
+  const low = Math.min(...values), range = Math.max(...values) - low || 1;
+  const dates = rows.map((row) => Date.parse(row.observation.reference_end));
+  const timeRange = dates.at(-1) - dates[0] || 1;
+  let segment = [];
+  function appendSegment() {
+    if (segment.length) {
+      const line = document.createElementNS(svg.namespaceURI, "polyline");
+      line.setAttribute("points", segment.join(" ")); line.setAttribute("class", "chart-line"); svg.append(line);
+    }
+    segment = [];
+  }
+  rows.forEach((row, index) => {
+    const value = row.observation.value;
+    if (typeof value !== "number" || !Number.isFinite(value)) { appendSegment(); return; }
+    const x = 30 + 660 * (dates[index] - dates[0]) / timeRange, y = 190 - 160 * (value - low) / range;
+    segment.push(x + "," + y);
+    const dot = document.createElementNS(svg.namespaceURI, "circle");
+    dot.setAttribute("cx", x); dot.setAttribute("cy", y); dot.setAttribute("r", "4"); dot.setAttribute("class", "chart-dot");
+    const title = document.createElementNS(svg.namespaceURI, "title"); title.textContent = row.observation.reference_end + " · " + valueText(value);
+    dot.append(title); svg.append(dot);
+  });
+  appendSegment(); container.append(svg, node("p", "detail-message", "Период " + rows[0].observation.reference_end + " — " + rows.at(-1).observation.reference_end + " · Пропуски разрывают линию"));
+}
+function renderHistory() {
+  const select = $("history-series"); fillSeriesSelect(select);
   const metadata = $("history-metadata"), rows = $("history-rows"); metadata.replaceChildren(); rows.replaceChildren();
   const selected = state.market?.series.find((series) => series.series_id === select.value);
-  if (selected) metadata.append(detailRow("Источник кандидата", selected.source_id), detailRow("Ресурс", selected.resource_id, true), detailRow("Версия данных", state.market.data_snapshot_id, true), detailRow("Допуск", "Не подтверждён · только synthetic"));
-  $("history-status").textContent = state.historyLoading ? "Получение сохранённого снимка" : state.history ? "Записей: " + state.history.total + (state.history.total > state.history.observations.length ? " · показаны первые " + state.history.observations.length : "") : "История недоступна";
+  if (selected && state.history) metadata.append(detailRow("Источник кандидата", selected.source_id), detailRow("Ресурс", selected.resource_id, true), detailRow("Версия данных", state.history.data_snapshot_id, true), detailRow("Допуск", "Не подтверждён · только synthetic"), detailRow("Свежесть", dataStateText(state.history)));
+  $("history-status").textContent = state.historyLoading ? "Получение сохранённого снимка" : state.historyError || state.marketError || (state.history ? "Записей: " + state.history.total + (state.history.total > state.history.observations.length ? " · показаны первые " + state.history.observations.length : "") : "История недоступна");
   if (!state.historyLoading && state.history) for (const revision of state.history.observations) {
     const observation = revision.observation, tr = node("tr", revision.is_latest ? "" : "superseded");
     const period = observation.reference_start === observation.reference_end ? observation.reference_start : observation.reference_start + " — " + observation.reference_end;
-    const values = [period, observation.value.toLocaleString("ru-RU"), unitLabels[observation.units] || observation.units, observation.published_at ? new Date(observation.published_at).toLocaleString("ru-RU") : "Неизвестно", new Date(observation.received_at).toLocaleString("ru-RU"), "r" + revision.revision_number + (revision.is_latest ? " · текущая" : " · заменена")];
+    const values = [period, valueText(observation.value), unitLabels[observation.units] || observation.units, dateText(observation.published_at), dateText(observation.received_at), "r" + revision.revision_number + (revision.is_latest ? " · текущая" : " · заменена")];
     for (const value of values) tr.append(node("td", "", value)); rows.append(tr);
   }
 }
 async function loadMarket() {
-  state.market = await api("/api/v1/market/series"); renderHistory(); await loadHistory();
+  const generation = ++state.marketGeneration;
+  ++state.historyGeneration;
+  state.marketLoading = true;
+  state.market = null;
+  state.history = null;
+  state.historyLoading = false;
+  state.historyError = "";
+  state.marketHistories = {};
+  state.marketError = "";
+  renderOverview();
+  renderHistory();
+  try {
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const catalog = await api("/api/v1/market/series");
+      const results = await Promise.allSettled(catalog.series.map((series) => api("/api/v1/market/series/" + encodeURIComponent(series.series_id) + "/history?limit=500")));
+      if (generation !== state.marketGeneration) return;
+      if (results.some((result) => result.status === "fulfilled" && result.value.data_snapshot_id !== catalog.data_snapshot_id)) {
+        state.marketError = "Снимок обновляется. Повторите проверку.";
+        continue;
+      }
+      state.market = catalog;
+      state.marketError = "";
+      state.marketErrors = {};
+      results.forEach((result, index) => {
+        const id = catalog.series[index].series_id;
+        if (result.status === "fulfilled" && result.value.series_id === id) state.marketHistories[id] = result.value;
+        else state.marketErrors[id] = "История ряда недоступна";
+      });
+      state.marketCheckedAt = new Date().toISOString();
+      break;
+    }
+  } catch (error) {
+    if (generation === state.marketGeneration) state.marketError = error.message;
+  } finally {
+    if (generation === state.marketGeneration) {
+      state.marketLoading = false;
+      renderOverview();
+      renderIndicators();
+      renderHistory();
+    }
+  }
+  if (generation === state.marketGeneration && state.market) await loadHistory(false);
 }
-async function loadHistory() {
+async function loadHistory(retry = true) {
   const series = $("history-series").value;
   if (!series) return;
   const generation = ++state.historyGeneration;
   const params = new URLSearchParams({ limit: "500", include_revisions: String($("history-revisions").checked) });
   if ($("history-start").value) params.set("start", $("history-start").value);
   if ($("history-end").value) params.set("end", $("history-end").value);
-  state.historyLoading = true; state.history = null; renderHistory();
+  const snapshot = state.market?.data_snapshot_id;
+  state.historyLoading = true;
+  state.history = null;
+  state.historyError = "";
+  renderHistory();
   try {
     const result = await api("/api/v1/market/series/" + encodeURIComponent(series) + "/history?" + params);
-    if (generation === state.historyGeneration) state.history = result;
-  } finally { if (generation === state.historyGeneration) { state.historyLoading = false; renderHistory(); } }
+    if (generation !== state.historyGeneration) return;
+    if (result.data_snapshot_id !== snapshot || result.series_id !== series) {
+      state.historyError = "Снимок обновляется. Повторите проверку.";
+      if (retry) { await loadMarket(); return; }
+    } else state.history = result;
+  } catch (error) {
+    if (generation === state.historyGeneration) state.historyError = error.message;
+  } finally {
+    if (generation === state.historyGeneration) {
+      state.historyLoading = false;
+      renderHistory();
+    }
+  }
+}
+async function openSeries(id) {
+  if (!canLeaveReview()) return;
+  state.view = "history";
+  render();
+  if (!state.market?.series.some((series) => series.series_id === id)) {
+    state.history = null;
+    state.historyError = "Показатель отсутствует в текущем снимке.";
+    renderHistory();
+    return;
+  }
+  $("history-series").value = id;
+  await loadHistory();
+}
+async function toggleIndicator(id) {
+  const generation = state.generation, selected = new Set(state.indicators);
+  if (selected.has(id)) selected.delete(id); else selected.add(id);
+  const result = await api("/api/v1/workspace/indicator-watchlist", { method: "PUT", data: { series_ids: [...selected] } });
+  if (generation !== state.generation) return;
+  state.indicators = result.series_ids; render();
+}
+function renderIndicators() {
+  const container = $("indicator-watchlist"); container.replaceChildren();
+  container.append(node("h2", "", "Показатели в наблюдении"));
+  if (!state.user) { container.append(empty("Личные показатели", true)); return; }
+  if (!state.indicators.length) container.append(node("p", "detail-message", "Добавьте показатель на обзоре."));
+  for (const id of state.indicators) {
+    const row = node("div", "indicator-row");
+    row.append(button(seriesLabels[id] || id, "table-2", async () => openSeries(id)),
+      button("Убрать показатель", "bookmark-minus", async () => toggleIndicator(id)));
+    container.append(row);
+  }
+}
+function renderWarnings() {
+  const rows = $("warning-rows"); rows.replaceChildren();
+  if (!state.user) { rows.append(empty("Личная очередь", true)); return; }
+  const filter = $("warning-filter").value;
+  for (const warning of state.warnings) {
+    const status = warning.review?.status || "new";
+    if (filter !== "all" && status !== filter) continue;
+    const row = node("article", "warning-row"); row.dataset.warningId = warning.warning_id;
+    row.append(node("h3", "", warning.title), node("p", "mono", warning.warning_id),
+      node("p", "warning-status", status === "new" ? "Новое" : statusLabels[status]),
+      node("p", "mono", warning.data_snapshot_id), node("p", "detail-message", warning.policy_id));
+    row.append(button("Разобрать предупреждение", "clipboard-plus", async () => {
+      if (!canLeaveReview()) return;
+      const generation = state.generation;
+      const review = await api("/api/v1/workspace/warnings/" + warning.warning_id + "/review", { method: "POST" });
+      if (generation !== state.generation) return;
+      state.review = review; await loadPrivate(); state.view = "reviews"; render();
+    }, "button primary"));
+    rows.append(row);
+  }
+  if (!rows.children.length) rows.append(empty("Предупреждений по фильтру нет"));
 }
 function renderModel() {
   const metadata = $("model-metadata"), blockers = $("model-blockers"), inputs = $("model-inputs"); metadata.replaceChildren(); blockers.replaceChildren(); inputs.replaceChildren();
   $("current-signal-state").textContent = state.modelLoading ? "Проверка статуса" : "Недоступен";
   if (!state.model) return;
+  if (state.task) metadata.append(detailRow("Task ID из методики", state.task.task_id, true), detailRow("Контракт задачи", state.task.task_contract_version, true), detailRow("Допуск модели", state.task.production_ready ? "Допущена" : "Ожидает приёмки"), detailRow("Политика предупреждений", state.task.operating_warning_policy_status));
   const definition = state.model.measurement;
   const threshold = definition.segment_threshold.toLocaleString("ru-RU", { minimumFractionDigits: 2 });
   metadata.append(detailRow("Задача", "Новый эпизод рыночного стресса в России"), detailRow("Постановка задачи", "Утверждена; модель не допущена"), detailRow("Горизонт постановки", state.model.primary_horizon_days + " календарных дней"), detailRow("Условие прогноза", "Только при известном отсутствии стресса"), detailRow("Измерение цели", "Методика зафиксирована; не валидирована"), detailRow("Условие стресса", `${definition.required_segments} из ${definition.mandatory_segments.length} сегментов с рангом от ${threshold}`), detailRow("Отсечка данных", `${String(definition.cutoff_hour).padStart(2, "0")}:00 МСК; данные за предыдущие даты`), detailRow("Определение цели", state.model.target_definition_id, true), detailRow("Калибровка", "Не установлена"), detailRow("Снимок данных", state.model.data_snapshot_id, true), detailRow("Модельный контракт", state.model.model_contract_version, true));
@@ -282,19 +469,21 @@ async function loadModel() {
   const generation = ++state.modelGeneration;
   state.modelLoading = true; state.model = null; state.signal = null; renderModel();
   try {
-    const [profile, signal, measurement] = await Promise.all([api("/api/v1/models/status"), api("/api/v1/signals/current?horizon_days=" + $("model-horizon").value), api("/api/v1/models/measurement")]);
+    const [profile, signal, measurement, task] = await Promise.all([api("/api/v1/models/status"), api("/api/v1/signals/current?horizon_days=" + $("model-horizon").value), api("/api/v1/models/measurement"), api("/api/v1/models/task")]);
     if (profile.data_snapshot_id !== signal.data_snapshot_id) throw new Error("Версии данных статуса и сигнала различаются. Обновите проверку.");
     if (signal.signal !== null || profile.accepted_artifact_available !== false) throw new Error("Ответ не соответствует текущему недопущенному model contract.");
     if (profile.task_id !== signal.task_id || profile.measurement_sha256 !== measurement.measurement_sha256 || profile.target_definition_id !== measurement.definition.target_definition_id) throw new Error("Версии задачи и методики различаются. Обновите проверку.");
-    if (generation === state.modelGeneration) { state.model = { ...profile, measurement: measurement.definition }; state.signal = signal; }
+    if (profile.task_id !== task.task_id || profile.task_contract_version !== task.task_contract_version || task.measurement_sha256 !== measurement.measurement_sha256) throw new Error("Методика задачи обновляется. Повторите проверку.");
+    if (generation === state.modelGeneration) { state.model = { ...profile, measurement: measurement.definition }; state.signal = signal; state.task = task; }
   } finally { if (generation === state.modelGeneration) { state.modelLoading = false; renderModel(); } }
 }
 async function loadPrivate(append = false) {
   if (!state.user) return;
   const generation = state.generation;
-  const [watchlist, reviews, reports] = await Promise.all([api("/api/v1/workspace/watchlist"), api("/api/v1/workspace/reviews?limit=50&offset=" + (append ? state.reviews.length : 0)), api("/api/v1/workspace/reports?limit=50")]);
+  const [watchlist, reviews, reports, indicators, warnings] = await Promise.all([api("/api/v1/workspace/watchlist"), api("/api/v1/workspace/reviews?limit=50&offset=" + (append ? state.reviews.length : 0)), api("/api/v1/workspace/reports?limit=50"), api("/api/v1/workspace/indicator-watchlist"), api("/api/v1/workspace/warnings?limit=100")]);
   if (generation !== state.generation || !state.user) return;
   state.watchlist = watchlist.scenario_ids; state.reviews = append ? [...state.reviews, ...reviews.reviews] : reviews.reviews;
+  state.indicators = indicators.series_ids; state.warnings = warnings.warnings;
   state.moreReviews = reviews.reviews.length === 50;
   state.reports = reports.reports; state.moreReports = reports.reports.length === 50;
   if (state.review) state.review = state.reviews.find((item) => item.review_id === state.review.review_id) || state.review;
@@ -356,6 +545,8 @@ $("login-button").addEventListener("click", openAuth);
 $("close-auth").addEventListener("click", () => $("auth-dialog").close());
 $("auth-dialog").addEventListener("close", () => { $("password-input").value = ""; $("token-input").value = ""; });
 $("scenario-search").addEventListener("input", renderMonitor);
+$("overview-series").addEventListener("change", renderOverview);
+$("warning-filter").addEventListener("change", renderWarnings);
 for (const id of ["history-series", "history-start", "history-end", "history-revisions"]) $(id).addEventListener("change", () => run(loadHistory));
 $("model-horizon").addEventListener("change", () => run(loadModel));
 $("logout-button").addEventListener("click", () => run(async () => { if (!canLeaveReview()) return; await api("/api/v1/auth/logout", { method: "POST" }); clearPersonal(); accountChannel?.postMessage("changed"); state.view = "monitor"; render(); notice("Вы вышли из аккаунта."); }, $("logout-button")));

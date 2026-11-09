@@ -22,10 +22,10 @@ def safe_csv(value):
 def csv_bytes(report):
     output = StringIO(newline="")
     writer = csv.writer(output)
-    writer.writerow(("report_id", "data_snapshot_id", "series_id", "resource_id", "reference_start", "reference_end", "value", "units", "published_at", "received_at", "revision", "is_latest", "synthetic", "source_rights_status"))
+    writer.writerow(("report_id", "data_snapshot_id", "series_id", "resource_id", "reference_start", "reference_end", "value", "units", "published_at", "received_at", "revision", "is_latest", "synthetic", "source_rights_status", "warning_id", "signal_id", "policy_id"))
     for revision in report.observations:
         row = revision.observation
-        writer.writerow([safe_csv(value) for value in (report.report_id, report.data_snapshot_id, row.series_id, row.resource_id, row.reference_start, row.reference_end, row.value, row.units, row.published_at.isoformat() if row.published_at else "unknown", row.received_at.isoformat(), revision.revision_number, str(revision.is_latest).lower(), "true", "not_admitted")])
+        writer.writerow([safe_csv(value) for value in (report.report_id, report.data_snapshot_id, row.series_id, row.resource_id, row.reference_start, row.reference_end, row.value, row.units, row.published_at.isoformat() if row.published_at else "unknown", row.received_at.isoformat(), revision.revision_number, str(revision.is_latest).lower(), "true", "not_admitted", report.review.review.warning_id or "", report.review.review.signal_id or "", report.review.review.policy_id or "")])
     return output.getvalue().encode("utf-8-sig")
 
 
@@ -63,6 +63,8 @@ def render_pdf(report):
     review = report.review.review
     signal = review.scenario.signal
     content = [para("ARCSHIFT / СИНТЕТИЧЕСКИЕ ДАННЫЕ"), para("Отчёт о разборе", heading), para("Отчёт: " + str(report.report_id)), para("Снимок данных: " + report.data_snapshot_id), para("Снимок сценария: " + review.snapshot_id), para(f"Разбор {review.review_id} / версия {review.revision}"), para("Текущий прогноз недоступен. Модель и реальные источники не допущены.")]
+    if review.warning_id:
+        content.extend([para("Warning ID " + review.warning_id), para("Signal ID " + review.signal_id), para("Policy ID " + review.policy_id)])
     if signal is not None:
         content.extend([para(f"Только пример: score {signal.score}; {signal.score_kind}"), para(f"Горизонт примера: {signal.horizon_value} календарных дней; модель {signal.model_version}"), para("Информация примера на: " + signal.information_as_of.isoformat())])
     else:
