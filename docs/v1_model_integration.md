@@ -7,6 +7,8 @@
 Q01 описаны в [протоколе оценки](v1_model_evaluation_protocol.md). Он относится
 к `ru-domestic-market-stress.1` / `ru_domestic_stress_onset.1`, требует
 отдельный as-of snapshot на каждый fold и не разрешает M04.
+Фактические команды, результаты и blockers перечислены в
+[возврате Милы](mila_model_validation_return.md).
 
 **Дополнение 06.11.2026:** [постановка задачи](v1_task_definition.md)
 согласована: новый рыночный стресс России, 30 календарных дней. Текущее API
