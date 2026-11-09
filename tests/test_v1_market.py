@@ -1,6 +1,7 @@
 """D01-D03 -> local snapshot -> API, without providers or model fitting."""
 
 from contextlib import closing
+import copy
 import hashlib
 import os
 from pathlib import Path
@@ -17,7 +18,7 @@ from arcshift_v1.database import connect
 from arcshift_v1.market import FIXTURES, MarketStore, canonical, fixture_state, validate_state
 from arcshift_v1.settings import Settings, PROJECT_ROOT
 from arcshift_v1.store import StoreUnavailableError
-from arcshift_data import parse_moex_imoex_json
+from arcshift_data import merge_observation_state, parse_moex_imoex_json
 
 
 USD = "ru.fx.cbr.usd_rub.official"
@@ -151,6 +152,33 @@ class MarketTests(unittest.TestCase):
         ).json()
         self.assertEqual(history["total"], 2)
         self.assertEqual(history["observations"][-1]["observation"]["value"], 2550.0)
+
+    def test_market_validator_keeps_a_new_acquisition_of_an_old_value(self):
+        raw = fixture_state()
+        usd_revisions = [
+            revision
+            for revision in raw["revisions"]
+            if revision["observation_identity"].endswith("|2026-11-05|2026-11-05")
+            and revision["observation"]["series_id"] == USD
+        ]
+        returned = copy.deepcopy(usd_revisions[0]["observation"])
+        returned["snapshot_id"] = "synthetic-parser-receipt-003"
+        returned["received_at"] = "2026-11-05T09:07:00+03:00"
+
+        revised, result = merge_observation_state(
+            raw, [returned], "2026-11-05T09:08:00+03:00"
+        )
+        state = validate_state(revised)
+        identity = usd_revisions[0]["observation_identity"]
+        self.assertEqual(result["added_count"], 1)
+        self.assertEqual(state.latest[identity].revision_number, 3)
+        self.assertEqual(state.latest[identity].observation.value, returned["value"])
+
+        replayed, replay_result = merge_observation_state(
+            revised, [returned], "2026-11-05T09:09:00+03:00"
+        )
+        self.assertEqual(replay_result["added_count"], 0)
+        self.assertEqual(replayed["snapshot_id"], revised["snapshot_id"])
 
     def test_worker_recovers_after_failure_before_shared_publish(self):
         payload = b'{"history":{"columns":["SECID","TRADEDATE","CLOSE"],"data":[["IMOEX","2026-11-05",2551.0]]}}'

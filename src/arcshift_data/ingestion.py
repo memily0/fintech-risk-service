@@ -1,7 +1,9 @@
 """Small file-based ingest boundary used by offline tests and fixtures."""
 
 import copy
+from contextlib import contextmanager
 from datetime import datetime
+import fcntl
 import hashlib
 import json
 import os
@@ -53,6 +55,8 @@ def _validate_candidate_observation(observation):
         or any(character not in string.hexdigits.lower() for character in receipt_hash)
     ):
         raise ValueError("receipt_sha256 must contain 64 lowercase hex characters")
+    if not isinstance(observation["snapshot_id"], str) or not observation["snapshot_id"].strip():
+        raise ValueError("snapshot_id must identify one acquisition")
     _parse_timestamp(observation["received_at"])
 
 
@@ -146,6 +150,7 @@ class JsonObservationStore:
 
     def __init__(self, state_path):
         self.state_path = Path(state_path)
+        self.lock_path = self.state_path.with_name(self.state_path.name + ".lock")
 
     def _read_state(self):
         if not self.state_path.exists():
@@ -153,11 +158,26 @@ class JsonObservationStore:
         return json.loads(self.state_path.read_text(encoding="utf-8"))
 
     def publish(self, observations, published_at):
-        state = self._read_state()
-        state, result = merge_observation_state(state, observations, published_at)
-        if result["added_count"]:
-            _atomic_write_json(self.state_path, state)
-        return result
+        with self._write_lock():
+            state = self._read_state()
+            state, result = merge_observation_state(state, observations, published_at)
+            if result["added_count"]:
+                _atomic_write_json(self.state_path, state)
+            return result
+
+    @contextmanager
+    def _write_lock(self):
+        self.lock_path.parent.mkdir(parents=True, exist_ok=True)
+        flags = os.O_CREAT | os.O_RDWR
+        if hasattr(os, "O_NOFOLLOW"):
+            flags |= os.O_NOFOLLOW
+        file_descriptor = os.open(self.lock_path, flags, 0o600)
+        try:
+            fcntl.flock(file_descriptor, fcntl.LOCK_EX)
+            yield
+        finally:
+            fcntl.flock(file_descriptor, fcntl.LOCK_UN)
+            os.close(file_descriptor)
 
     def read(self):
         return self._read_state()
@@ -177,41 +197,27 @@ def merge_observation_state(state, observations, published_at):
 
     added_count = 0
     duplicate_count = 0
-    comparable_fields = [
-        "series_id",
-        "resource_id",
-        "units",
-        "value",
-        "quality",
-        "reference_start",
-        "reference_end",
-        "effective_date",
-        "published_at",
-        "publication_status",
-        "dimensions",
-    ]
 
     for observation in observations:
         _validate_candidate_observation(observation)
         if _parse_timestamp(observation["received_at"]) > published_time:
             raise ValueError("Observation receipt cannot follow snapshot publication")
         observation_identity = _observation_identity(observation)
-        receipt_hash = observation["receipt_sha256"]
+        receipt_id = observation["snapshot_id"]
 
         matching_revision = None
         for revision in next_state["revisions"]:
             if (
                 revision["observation_identity"] == observation_identity
-                and revision["observation"]["receipt_sha256"] == receipt_hash
+                and revision["observation"]["snapshot_id"] == receipt_id
             ):
                 matching_revision = revision
                 break
 
         if matching_revision is not None:
             old_observation = matching_revision["observation"]
-            for field_name in comparable_fields:
-                if old_observation.get(field_name) != observation.get(field_name):
-                    raise ValueError("One receipt hash cannot describe different normalized data")
+            if old_observation != observation:
+                raise ValueError("One acquisition identity cannot describe different normalized data")
             duplicate_count += 1
             continue
 

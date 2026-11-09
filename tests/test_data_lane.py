@@ -1,10 +1,13 @@
 import copy
+from concurrent.futures import ThreadPoolExecutor
 import json
 import os
 from pathlib import Path
 import subprocess
 import sys
 import tempfile
+import threading
+import time
 import unittest
 
 from arcshift_data import (
@@ -334,6 +337,7 @@ class IngestionTests(unittest.TestCase):
         revised_observation["value"] = 80.5
         revised_observation["received_at"] = "2026-11-05T09:03:00+03:00"
         revised_observation["receipt_sha256"] = "1" * 64
+        revised_observation["snapshot_id"] = "synthetic-data-lane-revision"
         revision_result = self.store.publish([revised_observation], "2026-11-05T09:04:00+03:00")
 
         state = self.store.read()
@@ -352,6 +356,80 @@ class IngestionTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.store.publish([conflicting_observation], "2026-11-05T09:02:00+03:00")
 
+    def test_return_to_an_old_value_is_a_new_revision_but_replay_is_idempotent(self):
+        first = copy.deepcopy(self.observation)
+        first["value"] = 80.1
+        first["snapshot_id"] = "receipt-a-1"
+        first["receipt_sha256"] = "a" * 64
+
+        second = copy.deepcopy(first)
+        second["value"] = 81.1
+        second["received_at"] = "2026-11-05T09:02:00+03:00"
+        second["snapshot_id"] = "receipt-b"
+        second["receipt_sha256"] = "b" * 64
+
+        third = copy.deepcopy(first)
+        third["received_at"] = "2026-11-05T09:04:00+03:00"
+        third["snapshot_id"] = "receipt-a-2"
+
+        results = [
+            self.store.publish([first], "2026-11-05T09:01:00+03:00"),
+            self.store.publish([second], "2026-11-05T09:03:00+03:00"),
+            self.store.publish([third], "2026-11-05T09:05:00+03:00"),
+            self.store.publish([third], "2026-11-05T09:06:00+03:00"),
+        ]
+        state = self.store.read()
+        self.assertEqual([result["added_count"] for result in results], [1, 1, 1, 0])
+        self.assertEqual([result["duplicate_count"] for result in results], [0, 0, 0, 1])
+        self.assertEqual(len(state["revisions"]), 3)
+        self.assertEqual(next(iter(state["latest"].values()))["observation"]["value"], 80.1)
+
+    def test_two_store_instances_do_not_lose_each_others_write(self):
+        class SlowStore(JsonObservationStore):
+            def _read_state(inner_self):
+                state = super()._read_state()
+                time.sleep(0.05)
+                return state
+
+        first = copy.deepcopy(self.observation)
+        first["snapshot_id"] = "writer-one"
+        second = copy.deepcopy(self.observation)
+        second["snapshot_id"] = "writer-two"
+        second["receipt_sha256"] = "2" * 64
+        second["reference_start"] = "2026-11-06"
+        second["reference_end"] = "2026-11-06"
+        second["effective_date"] = "2026-11-06"
+        second["received_at"] = "2026-11-06T09:00:00+03:00"
+        second["dimensions"]["provider_date"] = "2026-11-06"
+
+        barrier = threading.Barrier(2)
+
+        def publish(store, observation, published_at):
+            barrier.wait()
+            return store.publish([observation], published_at)
+
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            futures = [
+                pool.submit(
+                    publish,
+                    SlowStore(self.state_path),
+                    first,
+                    "2026-11-05T09:01:00+03:00",
+                ),
+                pool.submit(
+                    publish,
+                    SlowStore(self.state_path),
+                    second,
+                    "2026-11-06T09:01:00+03:00",
+                ),
+            ]
+            results = [future.result(timeout=5) for future in futures]
+
+        state = self.store.read()
+        self.assertEqual([result["added_count"] for result in results], [1, 1])
+        self.assertEqual(len(state["revisions"]), 2)
+        self.assertEqual(len(state["latest"]), 2)
+
     def test_bad_receipt_hash_and_empty_publish_are_rejected(self):
         bad_hash_observation = copy.deepcopy(self.observation)
         bad_hash_observation["receipt_sha256"] = "not-a-hash"
@@ -366,6 +444,7 @@ class IngestionTests(unittest.TestCase):
         older_observation["value"] = 79.0
         older_observation["received_at"] = "2026-11-05T08:00:00+03:00"
         older_observation["receipt_sha256"] = "2" * 64
+        older_observation["snapshot_id"] = "synthetic-data-lane-older-revision"
         self.store.publish([older_observation], "2026-11-05T09:02:00+03:00")
 
         state = self.store.read()

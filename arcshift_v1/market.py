@@ -74,6 +74,13 @@ class Observation(ContractModel):
             raise ValueError("Real observations are not admitted")
         return value
 
+    @field_validator("snapshot_id")
+    @classmethod
+    def acquisition_identity(cls, value):
+        if not value.strip():
+            raise ValueError("Snapshot ID must identify one acquisition")
+        return value
+
     @model_validator(mode="after")
     def consistent_metadata(self):
         if self.reference_start > self.reference_end:
@@ -160,7 +167,7 @@ def validate_state(raw):
         source = resources.get(row.resource_id)
         if source is None or SERIES_BINDINGS.get(row.series_id) != (row.resource_id, row.units):
             raise ValueError("Unknown or mismatched series resource or units")
-        key = (identity, row.receipt_sha256)
+        key = (identity, row.snapshot_id)
         if key in seen or revision.revision_number != sequences.get(identity, 0) + 1:
             raise ValueError("Duplicate or non-contiguous revision")
         seen.add(key); sequences[identity] = revision.revision_number
