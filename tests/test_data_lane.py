@@ -43,6 +43,16 @@ CURVE_HTML = """
 </table>
 """.encode("utf-8")
 
+CURVE_TWO_LEVEL_HTML = """
+<h2>Zero-coupon yield curve</h2>
+<p>Percent per annum</p>
+<table>
+  <tr><th rowspan="2">Date</th><th colspan="5">Maturity years</th></tr>
+  <tr><th>0.25</th><th>1</th><th>2</th><th>5</th><th>10</th></tr>
+  <tr><td>05.11.2026</td><td>13.1</td><td>14.2</td><td>15.1</td><td>16.0</td><td>16.4</td></tr>
+</table>
+""".encode("utf-8")
+
 SYNTHETIC_CPI_CODES = {
     "territory": "SYNTHETIC_RUSSIA",
     "coverage": "SYNTHETIC_ALL_ITEMS",
@@ -155,6 +165,13 @@ class ParserTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             parse_cbr_currency_xml(USD_XML, "R01235", "2026-11-05T09:00:00", SNAPSHOT_ID, True)
 
+    def test_currency_keeps_provider_date_without_guessing_real_effective_date(self):
+        synthetic = parse_cbr_currency_xml(USD_XML, "R01235", RECEIVED_AT, SNAPSHOT_ID, True)[0]
+        real = parse_cbr_currency_xml(USD_XML, "R01235", RECEIVED_AT, SNAPSHOT_ID, False)[0]
+        self.assertEqual(synthetic["effective_date"], "2026-11-05")
+        self.assertIsNone(real["effective_date"])
+        self.assertEqual(real["dimensions"]["provider_date"], "2026-11-05")
+
     def test_curve_uses_tenor_headers_instead_of_column_positions(self):
         observations = parse_cbr_curve_html(CURVE_HTML, RECEIVED_AT, SNAPSHOT_ID, True)
         values_by_maturity = {
@@ -170,6 +187,29 @@ class ParserTests(unittest.TestCase):
         for bad_payload in (missing_tenor, duplicate_tenor, broken_row, b"<p>no table</p>"):
             with self.subTest(payload=bad_payload), self.assertRaises(ValueError):
                 parse_cbr_curve_html(bad_payload, RECEIVED_AT, SNAPSHOT_ID, True)
+
+    def test_curve_selects_one_contextual_two_level_table(self):
+        unrelated = """
+        <table>
+          <tr><th>Date</th><th>1</th><th>2</th><th>5</th><th>10</th></tr>
+          <tr><td>04.11.2026</td><td>1</td><td>2</td><td>5</td><td>10</td></tr>
+        </table>
+        """.encode()
+        observations = parse_cbr_curve_html(
+            unrelated + CURVE_TWO_LEVEL_HTML, RECEIVED_AT, SNAPSHOT_ID, True
+        )
+        self.assertEqual({row["reference_start"] for row in observations}, {"2026-11-05"})
+        self.assertEqual(
+            {row["dimensions"]["maturity_years"]: row["value"] for row in observations},
+            {1: 14.2, 2: 15.1, 5: 16.0, 10: 16.4},
+        )
+
+    def test_curve_rejects_ambiguous_tables_and_wrong_units(self):
+        with self.assertRaises(ValueError):
+            parse_cbr_curve_html(CURVE_HTML + CURVE_HTML, RECEIVED_AT, SNAPSHOT_ID, True)
+        wrong_units = CURVE_TWO_LEVEL_HTML.replace(b"Percent per annum", b"Basis points")
+        with self.assertRaises(ValueError):
+            parse_cbr_curve_html(wrong_units, RECEIVED_AT, SNAPSHOT_ID, True)
 
     def test_cpi_selects_dimensions_not_row_position(self):
         observations = parse_rosstat_cpi_json(
@@ -235,6 +275,7 @@ class ParserTests(unittest.TestCase):
         self.assertEqual(imoex["series_id"], "ru.equity.imoex.close")
         self.assertEqual(imoex["value"], 2540.5)
         self.assertEqual(imoex["source_timezone"], "Europe/Moscow")
+        self.assertEqual(imoex["dimensions"]["final_close_status"], "unconfirmed")
         self.assertEqual(vix["series_id"], "global.volatility.cboe.vix.close")
         self.assertEqual(vix["value"], 18.7)
         self.assertEqual(vix["source_timezone"], "America/New_York")
@@ -246,6 +287,31 @@ class ParserTests(unittest.TestCase):
             parse_moex_imoex_json(wrong_imoex, RECEIVED_AT, SNAPSHOT_ID, True)
         with self.assertRaises(ValueError):
             parse_cboe_vix_csv(bad_vix, RECEIVED_AT, SNAPSHOT_ID, True)
+
+    def test_imoex_rejects_duplicate_sessions_and_bad_metadata(self):
+        sessions = json.dumps(
+            {
+                "history": {
+                    "columns": ["SECID", "TRADEDATE", "CLOSE", "BOARDID", "TRADINGSESSION"],
+                    "data": [
+                        ["IMOEX", "2026-11-05", 2540.5, "SNDX", 1],
+                        ["IMOEX", "2026-11-05", 2541.0, "SNDX", 2],
+                    ],
+                }
+            }
+        ).encode()
+        bad_metadata = json.dumps(
+            {
+                "history": {
+                    "columns": ["SECID", "TRADEDATE", "CLOSE"],
+                    "metadata": {"SECID": {}, "TRADEDATE": {}},
+                    "data": [["IMOEX", "2026-11-05", 2540.5]],
+                }
+            }
+        ).encode()
+        for payload in (sessions, bad_metadata):
+            with self.subTest(payload=payload), self.assertRaises(ValueError):
+                parse_moex_imoex_json(payload, RECEIVED_AT, SNAPSHOT_ID, True)
 
 
 class IngestionTests(unittest.TestCase):

@@ -154,11 +154,15 @@ def parse_cbr_currency_xml(raw_payload, currency_id, received_at, snapshot_id, i
                 value=normalized_value,
                 reference_start=effective_date,
                 reference_end=effective_date,
-                effective_date=effective_date,
+                effective_date=effective_date if is_synthetic else None,
                 received_at=received_at,
                 snapshot_id=snapshot_id,
                 raw_payload=raw_payload,
-                dimensions={"currency_id": currency_id, "unit_nominal": 1},
+                dimensions={
+                    "currency_id": currency_id,
+                    "unit_nominal": 1,
+                    "provider_date": effective_date,
+                },
                 is_synthetic=is_synthetic,
             )
         )
@@ -168,32 +172,84 @@ def parse_cbr_currency_xml(raw_payload, currency_id, received_at, snapshot_id, i
     return observations
 
 
-class _SimpleTableParser(HTMLParser):
+class _TableParser(HTMLParser):
     def __init__(self):
         super().__init__()
-        self.rows = []
+        self.tables = []
+        self.current_table = None
         self.current_row = None
         self.current_cell = None
+        self.outside_text = []
 
     def handle_starttag(self, tag, attributes):
-        if tag.lower() == "tr":
+        tag = tag.lower()
+        if tag == "table":
+            self.current_table = {
+                "context": " ".join(self.outside_text[-12:]),
+                "rows": [],
+                "text": [],
+            }
+            self.outside_text = []
+        elif tag == "tr" and self.current_table is not None:
             self.current_row = []
-        if tag.lower() in {"th", "td"} and self.current_row is not None:
-            self.current_cell = []
+        elif tag in {"th", "td"} and self.current_row is not None:
+            cell_attributes = dict(attributes)
+            try:
+                rowspan = int(cell_attributes.get("rowspan", "1"))
+                colspan = int(cell_attributes.get("colspan", "1"))
+            except ValueError as error:
+                raise ValueError("Curve table has an invalid cell span") from error
+            if rowspan < 1 or colspan < 1:
+                raise ValueError("Curve table cell spans must be positive")
+            self.current_cell = {
+                "parts": [],
+                "rowspan": rowspan,
+                "colspan": colspan,
+            }
 
     def handle_data(self, data):
         if self.current_cell is not None:
-            self.current_cell.append(data)
+            self.current_cell["parts"].append(data)
+        elif self.current_table is not None:
+            self.current_table["text"].append(data)
+        elif data.strip():
+            self.outside_text.append(data.strip())
 
     def handle_endtag(self, tag):
-        if tag.lower() in {"th", "td"} and self.current_cell is not None:
-            cell_text = "".join(self.current_cell).strip()
-            self.current_row.append(cell_text)
+        tag = tag.lower()
+        if tag in {"th", "td"} and self.current_cell is not None:
+            self.current_cell["text"] = "".join(self.current_cell.pop("parts")).strip()
+            self.current_row.append(self.current_cell)
             self.current_cell = None
-        if tag.lower() == "tr" and self.current_row is not None:
+        elif tag == "tr" and self.current_row is not None:
             if self.current_row:
-                self.rows.append(self.current_row)
+                self.current_table["rows"].append(self.current_row)
             self.current_row = None
+        elif tag == "table" and self.current_table is not None:
+            self.tables.append(self.current_table)
+            self.current_table = None
+
+
+def _expand_table(rows):
+    occupied = {}
+    width = 0
+    for row_number, row in enumerate(rows):
+        column_number = 0
+        for cell in row:
+            while (row_number, column_number) in occupied:
+                column_number += 1
+            for row_offset in range(cell["rowspan"]):
+                for column_offset in range(cell["colspan"]):
+                    position = (row_number + row_offset, column_number + column_offset)
+                    if position in occupied:
+                        raise ValueError("Curve table has overlapping cells")
+                    occupied[position] = cell["text"]
+            column_number += cell["colspan"]
+        width = max(width, column_number)
+    return [
+        [occupied.get((row_number, column_number), "") for column_number in range(width)]
+        for row_number in range(len(rows))
+    ]
 
 
 def _normalize_maturity_header(raw_header):
@@ -204,6 +260,36 @@ def _normalize_maturity_header(raw_header):
     return f"{maturity_number:g}"
 
 
+def _curve_table_candidate(table):
+    rows = _expand_table(table["rows"])
+    for header_number, header_row in enumerate(rows):
+        if not header_row or header_row[0].strip().lower() not in {"date", "дата"}:
+            continue
+        maturity_to_column = {}
+        try:
+            for column_number, raw_header in enumerate(header_row[1:], start=1):
+                normalized_header = _normalize_maturity_header(raw_header)
+                if normalized_header in maturity_to_column:
+                    raise ValueError("Curve table has a duplicate maturity header")
+                maturity_to_column[normalized_header] = column_number
+        except ValueError:
+            continue
+        if set(CURVE_SERIES).issubset(maturity_to_column):
+            return rows, header_number, maturity_to_column
+    return None
+
+
+def _curve_context(table):
+    text = " ".join((table["context"], *table["text"])).lower()
+    text = " ".join(text.split())
+    curve_words = ("zero-coupon", "zero coupon", "yield curve", "zcyc", "бескупон", "кривой доходн")
+    unit_words = ("% годовых", "процентов годовых", "percent per annum", "% p.a.")
+    wrong_units = ("basis point", "базисн")
+    return any(word in text for word in curve_words), any(word in text for word in unit_words), any(
+        word in text for word in wrong_units
+    )
+
+
 def parse_cbr_curve_html(raw_payload, received_at, snapshot_id, is_synthetic):
     """Parse a provider-shaped curve table by tenor headers, never positions."""
     try:
@@ -211,34 +297,38 @@ def parse_cbr_curve_html(raw_payload, received_at, snapshot_id, is_synthetic):
     except (AttributeError, UnicodeDecodeError) as error:
         raise ValueError("Curve payload must be UTF-8 bytes") from error
 
-    table_parser = _SimpleTableParser()
+    table_parser = _TableParser()
     table_parser.feed(html_text)
-    if len(table_parser.rows) < 2:
-        raise ValueError("Curve payload must contain a header and at least one row")
+    candidates = []
+    for table in table_parser.tables:
+        candidate = _curve_table_candidate(table)
+        if candidate is None:
+            continue
+        has_context, has_units, has_wrong_units = _curve_context(table)
+        if not has_wrong_units:
+            candidates.append((candidate, has_context, has_units))
+    if not candidates:
+        raise ValueError("Curve payload has no 1/2/5/10Y table")
+    if len(candidates) > 1:
+        candidates = [candidate for candidate in candidates if candidate[1] and candidate[2]]
+    if len(candidates) != 1:
+        raise ValueError("Curve payload does not identify one unambiguous percent-per-annum table")
 
-    header_row = table_parser.rows[0]
-    if not header_row or header_row[0].strip().lower() not in {"date", "дата"}:
-        raise ValueError("Curve table first column must be Date")
-
-    maturity_to_column = {}
-    for column_number, raw_header in enumerate(header_row[1:], start=1):
-        normalized_header = _normalize_maturity_header(raw_header)
-        if normalized_header in maturity_to_column:
-            raise ValueError("Curve table has a duplicate maturity header")
-        maturity_to_column[normalized_header] = column_number
-
-    missing_maturities = set(CURVE_SERIES) - set(maturity_to_column)
-    if missing_maturities:
-        raise ValueError("Curve table is missing a required maturity header")
+    (rows, header_number, maturity_to_column), _, _ = candidates[0]
+    header_row = rows[header_number]
 
     observations = []
-    for data_row in table_parser.rows[1:]:
+    seen_dates = set()
+    for data_row in rows[header_number + 1 :]:
         if len(data_row) != len(header_row):
             raise ValueError("Curve data row has the wrong number of columns")
         try:
             reference_date = datetime.strptime(data_row[0], "%d.%m.%Y").date().isoformat()
         except ValueError as error:
             raise ValueError("Curve data row has an invalid date") from error
+        if reference_date in seen_dates:
+            raise ValueError("Curve table has a duplicate date")
+        seen_dates.add(reference_date)
 
         for maturity_header, series_details in CURVE_SERIES.items():
             series_id, resource_id, maturity_years = series_details
@@ -260,6 +350,8 @@ def parse_cbr_curve_html(raw_payload, received_at, snapshot_id, is_synthetic):
                     is_synthetic=is_synthetic,
                 )
             )
+    if not observations:
+        raise ValueError("Curve table has no data rows")
     return observations
 
 
@@ -405,9 +497,21 @@ def parse_moex_imoex_json(
     rows = history.get("data")
     if not isinstance(columns, list) or not isinstance(rows, list):
         raise ValueError("IMOEX history columns and data must be lists")
+    if not all(isinstance(column, str) and column for column in columns):
+        raise ValueError("IMOEX history columns must be non-empty strings")
     required = {"SECID", "TRADEDATE", "CLOSE"}
     if not required.issubset(columns) or len(columns) != len(set(columns)):
         raise ValueError("IMOEX history must contain unique SECID, TRADEDATE and CLOSE columns")
+
+    metadata = history.get("metadata")
+    if metadata is not None:
+        if not isinstance(metadata, dict) or any(
+            not isinstance(metadata.get(field_name), dict) for field_name in required
+        ):
+            raise ValueError("IMOEX history metadata must describe the required fields")
+        metadata_status = "present"
+    else:
+        metadata_status = "absent"
 
     observations = []
     seen_dates = set()
@@ -417,6 +521,8 @@ def parse_moex_imoex_json(
         row = dict(zip(columns, values))
         if row["SECID"] != "IMOEX":
             raise ValueError("IMOEX payload contains another security")
+        if "BOARDID" in row and row["BOARDID"] != "SNDX":
+            raise ValueError("IMOEX payload contains another board")
         try:
             trade_date = datetime.strptime(row["TRADEDATE"], "%Y-%m-%d").date().isoformat()
         except (TypeError, ValueError) as error:
@@ -427,6 +533,18 @@ def parse_moex_imoex_json(
         close = _parse_number(row["CLOSE"], "IMOEX CLOSE")
         if close <= 0:
             raise ValueError("IMOEX CLOSE must be positive")
+        dimensions = {
+            "security": "IMOEX",
+            "field": "CLOSE",
+            "metadata_status": metadata_status,
+            "final_close_status": "unconfirmed",
+        }
+        if "BOARDID" in row:
+            dimensions["board"] = row["BOARDID"]
+        if "TRADINGSESSION" in row:
+            if row["TRADINGSESSION"] in (None, ""):
+                raise ValueError("IMOEX TRADINGSESSION cannot be empty when present")
+            dimensions["trading_session"] = str(row["TRADINGSESSION"])
         observations.append(
             _base_observation(
                 series_id="ru.equity.imoex.close",
@@ -439,7 +557,7 @@ def parse_moex_imoex_json(
                 received_at=received_at,
                 snapshot_id=snapshot_id,
                 raw_payload=raw_payload,
-                dimensions={"security": "IMOEX", "field": "CLOSE"},
+                dimensions=dimensions,
                 is_synthetic=is_synthetic,
                 published_at=published_at,
             )
