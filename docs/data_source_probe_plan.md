@@ -19,6 +19,26 @@
 помещаться в утверждённый лимит. S&P 500, Brent и gold проверяются отдельным
 решением, потому что они не нужны для текущих пяти компонент target.
 
+## D04 request profile
+
+Все строки ниже в `HOLD`: нужны rights decision ID и технический
+лимит. Окно — один закрытый reference period, без pagination и backfill.
+
+| Ряд | Final endpoint / method | Окно | Max responses | Статус |
+| --- | --- | --- | ---: | --- |
+| USD/RUB | `https://www.cbr.ru/scripts/XML_dynamic.asp`, GET: `VAL_NM_RQ=R01235`, `date_req1=date_req2=DD/MM/YYYY` | 1 дата установления | 1 | HOLD: rights/date semantics |
+| EUR/RUB | тот же endpoint, `VAL_NM_RQ=R01239` | 1 дата установления | 1 | HOLD: rights/date semantics |
+| Key rate | `https://www.cbr.ru/DailyInfoWebServ/DailyInfo.asmx`, SOAP `KeyRate` | 1 изменение, `fromDate=ToDate` | 1 | HOLD: rights/announcement semantics |
+| CBR curve | `https://www.cbr.ru/hd_base/zcyc_params/`, GET с `UniDbQuery.From=UniDbQuery.To=DD.MM.YYYY` | 1 дата кривой | 1 | HOLD: rights/publication time |
+| CPI | endpoint не фиксируется до metadata-selector probe | 1 metadata + 1 месяц | 2 | HOLD: exact resource/dimensions |
+| IMOEX | `https://iss.moex.com/iss/history/engines/stock/markets/index/securities/IMOEX.json`, GET с `from=till=YYYY-MM-DD` и явными history columns | 1 торговая дата | 1 | HOLD: rights/final-session rule |
+| VIX | exact download resource не фиксируется до rights decision | 1 последняя строка | 1 | HOLD: resource/rights |
+
+Для каждого ответа receipt хранит URL без secrets, параметры, request
+и response timestamps, timezone, HTTP status, content type, `receipt_sha256`,
+`snapshot_id`, parser/schema version и decision ID. Проверки: expected instrument,
+units, unique dates/tenors/sessions, publication/receipt ordering, replay и atomic publish.
+
 ## Порядок запуска
 
 1. Для каждого ряда записать decision ID по display/model/export/API и лимит.

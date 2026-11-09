@@ -1,7 +1,7 @@
 # Возврат работы Насти: D01-D03
 
 - Участник / task IDs: Настя / D01, D02, D03.
-- Ветка / base commit / итоговый commit: `v1/data-nastya` / `4ae0778` / HEAD этой ветки.
+- Ветка / base commit / итоговый commit: `codex/data-reliability` / `59ba4a7` / HEAD этой ветки.
 - Реализовано: candidate source registry; чистые FX, curve и CPI parsers;
   file-based revision store; atomic publish; idempotency; one-scheduler lock;
   bounded retry для timeout/429; явные fixture freshness/calendar states.
@@ -13,7 +13,7 @@
 - Новые зависимости: нет; используется только Python standard library.
 - Запуск из чистого checkout:
   `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python3 -m unittest discover -s tests -v`.
-- Выполненные tests: 20 новых data-lane tests, `OK`; 27 исходных contract
+- Выполненные tests: 32 data-lane tests, `OK`; 27 исходных contract
   tests через handoff `.venv`, `OK`; `git diff --check`, без ошибок.
 - Исходный `tools/check_bundle.py`: 7 из 8 tests прошли, 1 упал на уже
   существовавшем в base расхождении SHA-256 для `evidence/evidence_to_product.csv`:
@@ -63,3 +63,25 @@
   Запросы не выполнялись, registry budgets по-прежнему нулевые.
 - Проверки итерации: 177 core tests, backend smoke с двумя restart cycles,
   auth smoke с сохранением/отзывом сессии, `pip check` и `git diff --check` — OK.
+
+## Итерация D03.2
+
+- `receipt_sha256` описывает тело ответа, `snapshot_id` — одно получение.
+  Replay key: `(series_id, reference_start, reference_end, snapshot_id)`.
+  Поэтому `A → B → A` даёт три ревизии, а повтор того же `snapshot_id`
+  остаётся идемпотентным.
+- `JsonObservationStore.publish` блокирует весь цикл read/merge/atomic replace.
+  Два экземпляра store больше не теряют одну из параллельных записей.
+- Общий market validator и producer используют одинаковую replay identity.
+- КБД выбирает одну таблицу по context/units/tenors, понимает `rowspan`/
+  `colspan`, отклоняет дубли сроков и неоднозначные таблицы.
+- FX хранит `provider_date` отдельно; для real observation `effective_date`
+  остаётся `null` до D04. IMOEX явно возвращает
+  `final_close_status=unconfirmed`, пока не утверждёна семантика сессий.
+- Проверки: 32 data-lane tests и 184 full V1 tests; точные команды
+  приведены в итоговом handoff.
+
+Открытые решения: точный IMOEX final-session marker; связь CBR
+`Record@Date` с effective date; `open/scheduled_closed/suspended/unknown` и
+calendar `known_at`; freeze policy после d+1 09:00 Europe/Moscow; контракт
+`missing` против `rejected`. Market API по этим пунктам не менялся.
