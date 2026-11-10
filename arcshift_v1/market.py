@@ -108,7 +108,7 @@ class MarketState(ContractModel):
 
 
 class MarketEnvelope(SyntheticModel):
-    market_contract_version: Literal["v1-local-market.1"] = "v1-local-market.1"
+    market_contract_version: Literal["v1-local-market.2"] = "v1-local-market.2"
     data_mode: Literal["synthetic"] = "synthetic"
     production_ready: Literal[False] = False
     source_rights_status: Literal["not_admitted"] = "not_admitted"
@@ -125,6 +125,11 @@ class SeriesView(ContractModel):
     received_at: AwareDatetime
     publication_status: Literal["unknown", "known"]
     published_at: AwareDatetime | None
+    availability_state: Literal["observed", "unavailable"]
+    calendar_state: Literal["open", "scheduled_closed", "suspended", "unknown"]
+    calendar_known_at: AwareDatetime
+    freshness_state: Literal["fresh", "stale", "unknown"]
+    freshness_checked_at: AwareDatetime
     observation_count: int
     revision_count: int
 
@@ -265,7 +270,27 @@ class MarketStore:
         for series_id in sorted({revision.observation.series_id for revision in state.revisions}):
             current = [revision.observation for revision in state.latest.values() if revision.observation.series_id == series_id]
             row = max(current, key=lambda item: (item.reference_end, item.received_at))
-            result.append(SeriesView(series_id=series_id, resource_id=row.resource_id, source_id=resources[row.resource_id], units=row.units, latest_reference_end=row.reference_end, received_at=row.received_at, publication_status=row.publication_status, published_at=row.published_at, observation_count=len(current), revision_count=sum(item.observation.series_id == series_id for item in state.revisions)))
+            result.append(
+                SeriesView(
+                    series_id=series_id,
+                    resource_id=row.resource_id,
+                    source_id=resources[row.resource_id],
+                    units=row.units,
+                    latest_reference_end=row.reference_end,
+                    received_at=row.received_at,
+                    publication_status=row.publication_status,
+                    published_at=row.published_at,
+                    availability_state="observed",
+                    calendar_state="unknown",
+                    calendar_known_at=state.published_at,
+                    freshness_state="unknown",
+                    freshness_checked_at=state.published_at,
+                    observation_count=len(current),
+                    revision_count=sum(
+                        item.observation.series_id == series_id for item in state.revisions
+                    ),
+                )
+            )
         return SeriesList(data_snapshot_id="market-" + state.snapshot_id, series=tuple(result))
 
     def history(self, series_id, start, end, include_revisions, limit, offset):

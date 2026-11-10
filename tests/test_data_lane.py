@@ -127,6 +127,16 @@ class SourceRegistryTests(unittest.TestCase):
 
     def test_registry_has_exact_time_and_calendar_bindings_for_priority_sources(self):
         registry = load_source_registry()
+        self.assertEqual(
+            registry["calendar_contract"],
+            {
+                "version": "candidate.calendar.1",
+                "states": ["open", "scheduled_closed", "suspended", "unknown"],
+                "known_at_required": True,
+                "freshness_states": ["fresh", "stale", "unknown"],
+                "availability_states": ["observed", "unavailable"],
+            },
+        )
         priority = {"cbr_key_rate", "rosstat_cpi_yoy", "moex_imoex", "cboe_vix"}
         bindings = {
             source["source_id"]: source.get("exact_binding")
@@ -480,22 +490,49 @@ class IngestionTests(unittest.TestCase):
 
     def test_freshness_states_are_explicit(self):
         self.assertEqual(
-            receipt_freshness_state(self.observation, "2026-11-05T09:05:00+03:00", 600, "open"),
+            receipt_freshness_state(
+                self.observation,
+                "2026-11-05T09:05:00+03:00",
+                600,
+                "open",
+                RECEIVED_AT,
+            ),
             "fresh",
         )
         self.assertEqual(
-            receipt_freshness_state(self.observation, "2026-11-05T10:00:00+03:00", 600, "open"),
+            receipt_freshness_state(
+                self.observation,
+                "2026-11-05T10:00:00+03:00",
+                600,
+                "open",
+                RECEIVED_AT,
+            ),
             "stale",
         )
+        for calendar_state in ("scheduled_closed", "suspended", "unknown"):
+            with self.subTest(calendar_state=calendar_state):
+                self.assertEqual(
+                    receipt_freshness_state(
+                        self.observation,
+                        RECEIVED_AT,
+                        600,
+                        calendar_state,
+                        RECEIVED_AT,
+                    ),
+                    "unknown",
+                )
         self.assertEqual(
-            receipt_freshness_state(self.observation, RECEIVED_AT, 600, "closed"),
-            "market_closed",
+            receipt_freshness_state(None, RECEIVED_AT, 600, "open", RECEIVED_AT),
+            "unknown",
         )
-        self.assertEqual(
-            receipt_freshness_state(self.observation, RECEIVED_AT, 600, "holiday"),
-            "calendar_holiday",
-        )
-        self.assertEqual(receipt_freshness_state(None, RECEIVED_AT, 600, "open"), "unavailable")
+        with self.assertRaises(ValueError):
+            receipt_freshness_state(
+                self.observation,
+                RECEIVED_AT,
+                600,
+                "open",
+                "2026-11-05T09:01:00+03:00",
+            )
 
 
 class RetryTests(unittest.TestCase):

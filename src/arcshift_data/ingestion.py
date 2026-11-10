@@ -263,20 +263,27 @@ def merge_observation_state(state, observations, published_at):
     }
 
 
-def receipt_freshness_state(observation, checked_at, maximum_receipt_age_seconds, calendar_state):
-    """Classify fixture receipt age; this is not a production calendar verdict."""
-    if calendar_state not in {"open", "closed", "holiday"}:
-        raise ValueError("calendar_state must be open, closed, or holiday")
-    if observation is None or observation.get("quality") != "observed":
-        return "unavailable"
-    if calendar_state == "closed":
-        return "market_closed"
-    if calendar_state == "holiday":
-        return "calendar_holiday"
+def receipt_freshness_state(
+    observation,
+    checked_at,
+    maximum_receipt_age_seconds,
+    calendar_state,
+    calendar_known_at,
+):
+    """Classify receipt age only when the server knows the market is open."""
+    if calendar_state not in {"open", "scheduled_closed", "suspended", "unknown"}:
+        raise ValueError("Unsupported calendar state")
     if maximum_receipt_age_seconds < 0:
         raise ValueError("maximum_receipt_age_seconds cannot be negative")
 
     checked_time = _parse_timestamp(checked_at)
+    calendar_known_time = _parse_timestamp(calendar_known_at)
+    if calendar_known_time > checked_time:
+        raise ValueError("Calendar state cannot be known in the future")
+    if calendar_state != "open":
+        return "unknown"
+    if observation is None or observation.get("quality") != "observed":
+        return "unknown"
     received_time = _parse_timestamp(observation["received_at"])
     receipt_age_seconds = (checked_time - received_time).total_seconds()
     if receipt_age_seconds < 0:

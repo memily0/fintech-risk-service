@@ -61,6 +61,12 @@ class MarketTests(unittest.TestCase):
         self.assertEqual(len(body["series"]), 10)
         self.assertEqual(sum(row["observation_count"] for row in body["series"]), 14)
         self.assertEqual(sum(row["revision_count"] for row in body["series"]), 15)
+        self.assertEqual(body["market_contract_version"], "v1-local-market.2")
+        for row in body["series"]:
+            self.assertEqual(row["availability_state"], "observed")
+            self.assertEqual(row["calendar_state"], "unknown")
+            self.assertEqual(row["freshness_state"], "unknown")
+            self.assertEqual(row["calendar_known_at"], row["freshness_checked_at"])
         self.assertTrue(body["synthetic"])
         self.assertEqual(body["source_rights_status"], "not_admitted")
         self.assertEqual(body["validity_status"], "historical_demo")

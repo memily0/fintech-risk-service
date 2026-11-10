@@ -18,6 +18,14 @@ def load_source_registry(registry_path=DEFAULT_REGISTRY_PATH):
         raise ValueError("Source registry must use schema version candidate.1")
     if registry.get("network_requests_allowed") is not False:
         raise ValueError("Candidate registry must keep network requests disabled")
+    if registry.get("calendar_contract") != {
+        "version": "candidate.calendar.1",
+        "states": ["open", "scheduled_closed", "suspended", "unknown"],
+        "known_at_required": True,
+        "freshness_states": ["fresh", "stale", "unknown"],
+        "availability_states": ["observed", "unavailable"],
+    }:
+        raise ValueError("Source registry has an unsupported calendar contract")
 
     source_ids = set()
     for source in registry.get("sources", []):

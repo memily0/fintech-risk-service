@@ -1,5 +1,12 @@
 {
   "schema_version": "candidate.1",
+  "calendar_contract": {
+    "version": "candidate.calendar.1",
+    "states": ["open", "scheduled_closed", "suspended", "unknown"],
+    "known_at_required": true,
+    "freshness_states": ["fresh", "stale", "unknown"],
+    "availability_states": ["observed", "unavailable"]
+  },
   "status": "candidate_not_admitted",
   "network_requests_allowed": false,
   "request_budget_decision": "D01-CANDIDATE-ZERO-UNTIL-SOURCE-ADMISSION",

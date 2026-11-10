@@ -82,6 +82,15 @@
   приведены в итоговом handoff.
 
 Открытые решения: точный IMOEX final-session marker; связь CBR
-`Record@Date` с effective date; `open/scheduled_closed/suspended/unknown` и
-calendar `known_at`; freeze policy после d+1 09:00 Europe/Moscow; контракт
+`Record@Date` с effective date; freeze policy после d+1 09:00 Europe/Moscow; контракт
 `missing` против `rejected`. Market API по этим пунктам не менялся.
+
+## Follow-up 10.11.2026: calendar/freshness contract
+
+- Registry фиксирует `candidate.calendar.1`: `open`, `scheduled_closed`,
+  `suspended`, `unknown` с обязательным `known_at`.
+- Market API `v1-local-market.2` разделяет `availability_state`,
+  `calendar_state` и `freshness_state`; `published_at` и `received_at` не смешиваются.
+- Пока provider calendar не проверен, API возвращает `calendar_state=unknown`
+  и `freshness_state=unknown`. Браузер показывает этот серверный статус
+  и не выводит `stale`/`рынок закрыт` из локального времени.

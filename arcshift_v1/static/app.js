@@ -9,6 +9,9 @@ const blockerLabels = { task_and_horizons_not_approved: "Задача и гор�
 const componentLabels = { vix_zscore: "VIX", usd_rub_volatility_zscore: "Волатильность USD/RUB", imoex_volatility_zscore: "Волатильность IMOEX", imoex_drawdown_zscore: "Просадка IMOEX", ofz_inversion_zscore: "Инверсия кривой ОФЗ 10Y–2Y" };
 const seriesLabels = { "ru.fx.cbr.usd_rub.official": "USD/RUB · условный курс", "ru.fx.cbr.eur_rub.official": "EUR/RUB · условный курс", "ru.prices.rosstat.cpi_yoy": "Инфляция · условный CPI YoY", "ru.curve.cbr.zero_coupon.1y": "Кривая ОФЗ · условные 1 год", "ru.curve.cbr.zero_coupon.2y": "Кривая ОФЗ · условные 2 года", "ru.curve.cbr.zero_coupon.5y": "Кривая ОФЗ · условные 5 лет", "ru.curve.cbr.zero_coupon.10y": "Кривая ОФЗ · условные 10 лет" };
 const unitLabels = { RUB_per_USD: "₽ / USD", RUB_per_EUR: "₽ / EUR", percent_per_annum: "% годовых", percent_YoY: "% г/г" };
+const calendarLabels = { open: "Открыт", scheduled_closed: "Закрыт по расписанию", suspended: "Торги приостановлены", unknown: "Неизвестно" };
+const freshnessLabels = { fresh: "Свежие", stale: "Устаревшие", unknown: "Неизвестно" };
+const availabilityLabels = { observed: "Наблюдение есть", unavailable: "Наблюдения нет" };
 const labels = { historical_demo: "Исторический пример", loading: "Получение данных", empty: "История отсутствует", stale: "Данные устарели", unsupported: "Не поддерживается", error: "Источник недоступен" };
 const icons = { historical_demo: "chart-no-axes-combined", loading: "loader-circle", empty: "inbox", stale: "clock-3", unsupported: "circle-slash", error: "unplug" };
 const statusLabels = { acknowledged: "Принят", in_review: "В разборе", closed: "Закрыт", dismissed: "Отклонён" };
@@ -239,7 +242,7 @@ function renderHistory() {
   }
   const metadata = $("history-metadata"), rows = $("history-rows"); metadata.replaceChildren(); rows.replaceChildren();
   const selected = state.market?.series.find((series) => series.series_id === select.value);
-  if (selected) metadata.append(detailRow("Источник кандидата", selected.source_id), detailRow("Ресурс", selected.resource_id, true), detailRow("Версия данных", state.market.data_snapshot_id, true), detailRow("Допуск", "Не подтверждён · только synthetic"));
+  if (selected) metadata.append(detailRow("Источник кандидата", selected.source_id), detailRow("Ресурс", selected.resource_id, true), detailRow("Версия данных", state.market.data_snapshot_id, true), detailRow("Доступность", availabilityLabels[selected.availability_state]), detailRow("Календарь", calendarLabels[selected.calendar_state] + " · известно на " + new Date(selected.calendar_known_at).toLocaleString("ru-RU")), detailRow("Свежесть", freshnessLabels[selected.freshness_state] + " · проверено " + new Date(selected.freshness_checked_at).toLocaleString("ru-RU")), detailRow("Допуск", "Не подтверждён · только synthetic"));
   $("history-status").textContent = state.historyLoading ? "Получение сохранённого снимка" : state.history ? "Записей: " + state.history.total + (state.history.total > state.history.observations.length ? " · показаны первые " + state.history.observations.length : "") : "История недоступна";
   if (!state.historyLoading && state.history) for (const revision of state.history.observations) {
     const observation = revision.observation, tr = node("tr", revision.is_latest ? "" : "superseded");

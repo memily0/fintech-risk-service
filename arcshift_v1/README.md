@@ -123,11 +123,14 @@ the API passes its packaged synthetic registry explicitly.
 - `GET /api/v1/market/series`: ten synthetic series, metadata and row counts.
 - `GET /api/v1/market/series/{series_id}/history`: date filtering, bounded
   pagination and optional `include_revisions=true`.
-- Candidate market contract: `v1-local-market.1`, always synthetic,
+- Candidate market contract: `v1-local-market.2`, always synthetic,
   `validity_status=historical_demo`, `source_rights_status=not_admitted`.
 
 The browser History view reads this API. Receipt time and unknown publication
-stay distinct. Restart preserves the active snapshot and does not roll it back
+stay distinct. Availability, calendar and freshness are separate server fields.
+Until a provider calendar is verified, calendar and freshness remain `unknown`;
+the browser does not infer `stale` or a closed market from its own clock.
+Restart preserves the active snapshot and does not roll it back
 to the original seed. Content hashes, contiguous revisions, latest-map
 consistency and series/resource/unit bindings are checked on reads. These are
 not real provider connectivity, a scheduler, freshness admission or model input
