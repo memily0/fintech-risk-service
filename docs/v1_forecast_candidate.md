@@ -1,6 +1,8 @@
 # V1 Forecast Candidate And Evaluation Handoff
 
-Date: 2026-11-10. Status: proposed; no real fit, accepted artifact, or serving.
+Updated: 2026-11-12. Two working limits agreed for the first historical
+comparison; the full evaluation manifest is still proposed. No real fit,
+accepted artifact, or serving.
 
 The V1 task is a **new Russian market-stress episode in the next 30 calendar
 days**, not the probability of a systemic banking crisis and not classification
@@ -26,24 +28,32 @@ of a month already in stress. See [task definition](v1_task_definition.md) and
 
 ## Draft Acceptance Criteria
 
-These are proposed starting values for discussion, not an approved manifest or
-claims based on Russian outcomes. Do not run M04 on this document alone.
+The product owner agreed on 2026-11-12 to a 10% false-alarm-day limit and
+5 calendar days of useful lead for the first historical comparison. The
+remaining rows describe proposed procedure, not an approved manifest.
+Neither limit establishes quality on Russian outcomes or authorizes M04.
 
-| Decision | Proposal for the first historical comparison |
+| Decision | Status and rule for the first historical comparison |
 | --- | --- |
 | Comparators | Use the mature training prevalence for probability scoring. Also compare to a rule that warns on high point-in-time stress intensity while stress is known to be absent. Add this second reference to the manifest only after review. |
-| False alarms | Start with at most 10% of comparable negative origin-days in warning. Count days, not notifications, and report the numerator, denominator and time in warning. Apply the same budget to the candidate and the intensity rule. |
-| Useful lead | Start with at least 5 calendar days before onset. Report detections at any lead and at useful lead separately. An episode with a late warning is not a timely detection; report misses and non-comparable episodes separately. |
+| False alarms | Agreed: at most 10% of comparable negative origin-days in warning. Count days, not notifications, and report the numerator, denominator and time in warning. Apply the same budget to the candidate and the intensity rule. |
+| Useful lead | Agreed: at least 5 calendar days before onset. Report detections at any lead and at useful lead separately. An episode with a late warning is not a timely detection; report misses and non-comparable episodes separately. |
 | Threshold selection | Use development predictions only. Within the budget, prefer more timely detections; break ties by fewer warning days, then the higher threshold. If no nonempty policy fits, record no warning policy rather than relaxing the limit. Freeze each threshold before the corresponding outer test. |
 | Acceptance | On untouched comparable dates, check the actual false-alarm budget, improvement in timely episode detection against the intensity rule, and Brier improvement against the prevalence reference. Report differences with uncertainty and calendar-fold breakdowns. A point improvement without adequate coverage and precision is not a pass. |
 
-Before execution the owner and reviewer must approve the two proposed limits,
-exact fold cutoffs, minimum counts and coverage for valid evidence, calibration
-requirements, and uncertainty/acceptance bounds. Undefined metrics (for
-example, no negative origins) do not count as a pass. Estimate days separately
-from alert episodes; grouping consecutive alerts and a notification budget are
-separate policy decisions. The current scorecard records lead times but does
-not apply the draft cutoff or select operating thresholds.
+Our own banking-crisis experiments motivate using a fixed false-alarm budget
+and measuring episode misses separately: a method can stay within budget and
+still miss many episodes. We reuse the budget as a starting point, not the
+banking-crisis performance as evidence for daily Russian market stress. The
+five-day limit is an analyst workflow hypothesis, not a finding from those
+longer-horizon experiments. Validate its usefulness with analysts separately.
+
+Before execution, approve exact fold cutoffs, minimum counts and coverage,
+calibration requirements, and uncertainty/acceptance bounds in the manifest.
+Undefined metrics (for example, no negative origins) do not count as a pass.
+Grouping consecutive alerts and choosing a notification budget are separate
+policy decisions. The current scorecard records lead times but does not apply
+the five-day cutoff or select operating thresholds.
 
 ## Implemented Offline
 
