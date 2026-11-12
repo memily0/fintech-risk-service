@@ -77,6 +77,27 @@ class MigrationTests(DatabaseTestCase):
         self.assertEqual(before, self.query("SELECT * FROM fixture_snapshots"))
         self.assertEqual(self.query("SELECT count(*) FROM local_users"), [(0,)])
 
+    def test_upgrade_from_v5_preserves_unlinked_reviews_bookmarks_and_reports(self):
+        directory = self.copy_migrations()
+        (directory / "006_local_warning_workspace.sql").unlink()
+        self.assertEqual(migrate(self.path, directory), 5)
+        checksum = hashlib.sha256(b"{}").hexdigest()
+        with closing(connect(self.path)) as connection:
+            connection.execute("INSERT INTO local_users VALUES ('owner', 'owner@example.test', 'test-only', 1, 1, 1)")
+            connection.execute("INSERT INTO fixture_snapshots VALUES ('old-fixture', 'original', ?, '{}', 1, 'original-time')", (checksum,))
+            connection.execute("INSERT INTO local_market_snapshots VALUES ('old-market', '{}', ?, 1, 1)", (checksum,))
+            connection.execute("INSERT INTO local_watchlist VALUES ('owner', 'stale', 1)")
+            connection.execute("INSERT INTO local_reviews VALUES ('review', 'owner', 'old-fixture', '{}', 'acknowledged', 'note', 1, 1, 1)")
+            connection.execute("INSERT INTO local_review_events VALUES ('event', 'review', 'owner', 'acknowledged', 1, 1)")
+            connection.execute("INSERT INTO local_saved_reports VALUES ('report', 'owner', 'review', 'old-market', '{}', ?, 1)", (checksum,))
+        before = self.query("SELECT * FROM local_saved_reports")
+        self.assertEqual(migrate(self.path), SCHEMA_VERSION)
+        self.assertEqual(self.query("SELECT review_id, note, warning_id FROM local_reviews"), [("review", "note", None)])
+        self.assertEqual(self.query("SELECT event_id, revision FROM local_review_events"), [("event", 1)])
+        self.assertEqual(self.query("SELECT user_id, scenario_id FROM local_watchlist"), [("owner", "stale")])
+        self.assertEqual(self.query("SELECT * FROM local_saved_reports"), before)
+        self.assertEqual(self.query("PRAGMA foreign_key_check"), [])
+
     def test_modified_applied_migration_is_rejected(self):
         directory = self.copy_migrations()
         migrate(self.path, directory)

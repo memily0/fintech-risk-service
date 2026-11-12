@@ -135,6 +135,18 @@ dialog::backdrop { background: #11221b66; }
 .model-input-row small { display: block; margin-top: 5px; color: var(--muted); font-size: 10px; overflow-wrap: anywhere; }
 .model-input-row > span { color: var(--muted); }
 .saved-report-note { margin-top: 18px; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; }
+.workspace-toolbar { flex-wrap: wrap; }
+.workspace-rows { margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--line); }
+.workspace-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 16px; min-height: 76px; padding: 12px 10px; border-bottom: 1px solid var(--line); }
+.workspace-row strong { display: block; font-size: 13px; font-weight: 600; overflow-wrap: anywhere; }
+.workspace-row small { display: block; margin-top: 3px; color: var(--muted); font-size: 11px; overflow-wrap: anywhere; }
+.workspace-row-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 10px; }
+.warning-status { font-size: 12px; color: var(--muted); }
+.warning-status[data-status="new"] { color: var(--amber); font-weight: 600; }
+.watchlist-add { display: grid; grid-template-columns: minmax(0, 1fr) 36px; gap: 8px; width: min(100%, 300px); }
+.watchlist-add select { width: 100%; min-width: 0; height: 36px; padding: 4px 8px; color: var(--ink); background: var(--paper); border: 1px solid #cbd6d0; border-radius: 5px; }
+.watchlist-add .icon-button { width: 36px; height: 36px; }
+@media (max-width: 520px) { .workspace-row { grid-template-columns: minmax(0, 1fr); gap: 8px; } .workspace-row-actions { justify-content: flex-start; } .watchlist-add { width: 100%; } }
 @media (max-width: 680px) { #model-view .section-toolbar { flex-wrap: wrap; } .model-horizon { margin-left: auto; flex-direction: column; gap: 4px; align-items: end; } .model-signal-band { align-items: start; flex-direction: column; } .model-input-row { grid-template-columns: minmax(0, 1fr) 105px; gap: 10px; } }
 @media (max-width: 1100px) { .history-controls { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 680px) { .history-controls > label:first-child { grid-column: 1 / -1; } }

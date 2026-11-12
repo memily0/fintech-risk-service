@@ -22,6 +22,7 @@ from .database import SchemaError
 from .schemas import CapabilitiesResponse, HealthResponse, ScenarioListResponse, ScenarioResponse
 from .settings import Settings
 from .store import FixtureStore, ScenarioStore, SQLiteScenarioStore, StoreUnavailableError
+from .workspace import WorkspaceService
 
 
 def get_store(request: Request) -> ScenarioStore:
@@ -46,6 +47,8 @@ def create_app(settings: Settings | None = None, store_factory: Callable[[], Sce
         app.state.auth_service = AuthService(config.database_path) if config.storage_backend == "sqlite" and store_factory is None else None
         app.state.market_store = MarketStore.open(config.database_path if app.state.auth_service is not None else None)
         try:
+            if app.state.auth_service is not None:
+                WorkspaceService(app.state.auth_service, app.state.scenario_store).seed_warnings(app.state.market_store)
             yield
         finally:
             del app.state.scenario_store

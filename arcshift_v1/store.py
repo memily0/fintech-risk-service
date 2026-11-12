@@ -93,13 +93,16 @@ class SQLiteScenarioStore:
                 raise
         return snapshot_id
 
-    def _snapshot(self) -> tuple[str, FixtureDataset]:
+    def _snapshot(self, snapshot_id: str | None = None) -> tuple[str, FixtureDataset]:
         try:
             check_schema(self.path)
             with closing(connect(self.path, readonly=True)) as connection:
-                row = connection.execute(
-                    "SELECT s.* FROM fixture_snapshots s JOIN fixture_active_snapshot a ON a.snapshot_id = s.snapshot_id WHERE a.slot = 1"
-                ).fetchone()
+                if snapshot_id is None:
+                    row = connection.execute(
+                        "SELECT s.* FROM fixture_snapshots s JOIN fixture_active_snapshot a ON a.snapshot_id = s.snapshot_id WHERE a.slot = 1"
+                    ).fetchone()
+                else:
+                    row = connection.execute("SELECT * FROM fixture_snapshots WHERE snapshot_id=?", (snapshot_id,)).fetchone()
             if row is None:
                 raise StoreUnavailableError("No active fixture snapshot")
             if any(type(row[key]) is not str for key in ("snapshot_id", "fixture_version", "payload_sha256", "payload_json")):
@@ -117,8 +120,8 @@ class SQLiteScenarioStore:
     def _dataset(self) -> FixtureDataset:
         return self._snapshot()[1]
 
-    def snapshot_scenario(self, scenario_id: str) -> tuple[str, DemoScenario]:
-        snapshot_id, dataset = self._snapshot()
+    def snapshot_scenario(self, scenario_id: str, *, snapshot_id: str | None = None) -> tuple[str, DemoScenario]:
+        snapshot_id, dataset = self._snapshot(snapshot_id)
         for row in dataset.scenarios:
             if row.id == scenario_id:
                 return snapshot_id, row

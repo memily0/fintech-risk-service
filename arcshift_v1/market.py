@@ -215,15 +215,21 @@ class MarketStore:
                 raise
         return identifier
 
-    def read(self):
+    def read(self, *, snapshot_id: str | None = None):
         try:
             if self.path is None:
-                return validate_state(self.raw)
+                state = validate_state(self.raw)
+                if snapshot_id is not None and snapshot_id != "market-" + state.snapshot_id:
+                    raise ValueError("Market snapshot not available in memory")
+                return state
             check_schema(self.path)
             with closing(connect(self.path, readonly=True)) as connection:
-                row = connection.execute("SELECT s.* FROM local_market_snapshots s JOIN local_market_active a ON a.snapshot_id=s.snapshot_id WHERE a.slot=1").fetchone()
+                if snapshot_id is None:
+                    row = connection.execute("SELECT s.* FROM local_market_snapshots s JOIN local_market_active a ON a.snapshot_id=s.snapshot_id WHERE a.slot=1").fetchone()
+                else:
+                    row = connection.execute("SELECT * FROM local_market_snapshots WHERE snapshot_id=?", (snapshot_id,)).fetchone()
             if row is None or type(row["payload_json"]) is not str or row["synthetic"] != 1:
-                raise ValueError("No valid active market snapshot")
+                raise ValueError("No valid market snapshot")
             if hashlib.sha256(row["payload_json"].encode()).hexdigest() != row["payload_sha256"]:
                 raise ValueError("Market payload hash mismatch")
             state = validate_state(json.loads(row["payload_json"]))

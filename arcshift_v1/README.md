@@ -179,9 +179,18 @@ and mobile. Browser print is available, not server-side PDF generation.
 ## Private Workflow
 
 - `/api/v1/workspace/watchlist`: owner-scoped GET and CSRF-protected PUT.
+- `/api/v1/workspace/series-watchlist`: private `series_id` selections, separate
+  from the existing demo scenario bookmarks.
+- `/api/v1/workspace/warnings`: fixture-only queue; `PUT /{warning_id}/review`
+  on that route opens the current account's review without duplicating it.
+  See the [warning and watchlist contract](../docs/v1_warning_workspace.md).
 - `/api/v1/workspace/reviews`: bounded GET and CSRF-protected POST.
 - `/api/v1/workspace/reviews/{UUID}`: owner-scoped GET/PATCH.
 - `/api/v1/workspace/reviews/{UUID}/report.json` and `/report.csv`: owner-only.
+
+The browser's Warnings and Watchlist views use the private APIs above. They
+keep synthetic warnings separate from the current-signal endpoint and link
+saved series to History without removing bookmarks for absent observations.
 
 Each review freezes the exact synthetic scenario and content-addressed SQLite
 snapshot. Edits require `expected_revision`; stale edits return 409 without
@@ -224,7 +233,7 @@ python3 -m venv .venv-validation
 ```
 
 The core suite deliberately excludes this optional subdirectory. Current
-counts are 171 core/data/API tests and 60 optional temporal/measurement tests. The temporal
+counts are 177 core/data/API tests and 60 optional temporal/measurement tests. The temporal
 bridge accepts only synthetic standardized components with explicit snapshot,
 threshold, horizon and outcome as-of date. It prepares labels/train masks; it
 does not implement point-in-time feature construction, a frozen M04 run,

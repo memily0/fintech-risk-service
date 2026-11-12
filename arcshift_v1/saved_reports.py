@@ -59,26 +59,32 @@ class SavedReportService:
         self.auth = workspace.auth
 
     def create(self, user_id, data: CreateSavedReport):
-        snapshot = self.market.read()
+        review_id = str(data.review_id)
+        with closing(connect(self.auth.path, readonly=True)) as connection:
+            pinned_snapshot_id = self.workspace.owned(connection, user_id, review_id)["data_snapshot_id"]
+        if pinned_snapshot_id is not None and data.expected_data_snapshot_id != pinned_snapshot_id:
+            raise AuthFailure("report_snapshot_conflict", 409)
+        snapshot = self.market.read(snapshot_id=pinned_snapshot_id)
         snapshot_id = "market-" + snapshot.snapshot_id
         if data.expected_data_snapshot_id != snapshot_id:
             raise AuthFailure("report_snapshot_conflict", 409)
-        known = {row.observation.series_id for row in snapshot.revisions}
+        known = {revision.observation.series_id for revision in snapshot.revisions}
         selected = known if data.series_ids is None else set(data.series_ids)
         if not selected <= known:
             raise AuthFailure("report_series_not_supported", 422)
-        observations = tuple(HistoryRow(**row.model_dump(), is_latest=snapshot.latest[row.observation_identity] == row) for row in snapshot.revisions if row.observation.series_id in selected)
-        if len(observations) > 2000:
+        revisions = [revision for revision in snapshot.revisions if revision.observation.series_id in selected]
+        if len(revisions) > 2000:
             raise AuthFailure("report_too_large", 413)
+        observations = tuple(HistoryRow(**revision.model_dump(), is_latest=snapshot.latest[revision.observation_identity] == revision) for revision in revisions)
         now = int(self.auth.clock())
         with self.auth.transaction() as connection:
-            row = self.workspace.owned(connection, user_id, str(data.review_id))
+            row = self.workspace.owned(connection, user_id, review_id)
             if row["revision"] != data.expected_revision:
                 raise AuthFailure("review_revision_conflict", 409)
-            events = connection.execute("SELECT status, revision, occurred_at FROM local_review_events WHERE user_id=? AND review_id=? ORDER BY revision", (user_id, str(data.review_id))).fetchall()
+            events = connection.execute("SELECT status, revision, occurred_at FROM local_review_events WHERE user_id=? AND review_id=? ORDER BY revision", (user_id, review_id)).fetchall()
             report = SavedReport(report_id=uuid4(), created_at=now, data_snapshot_id=snapshot_id, review=ReviewReport(review=self.workspace.view(row), events=tuple(ReviewEvent(**dict(event)) for event in events)), observations=observations)
             payload = report.model_dump_json()
-            connection.execute("INSERT INTO local_saved_reports VALUES (?, ?, ?, ?, ?, ?, ?)", (str(report.report_id), user_id, str(data.review_id), snapshot_id, payload, hashlib.sha256(payload.encode()).hexdigest(), now))
+            connection.execute("INSERT INTO local_saved_reports VALUES (?, ?, ?, ?, ?, ?, ?)", (str(report.report_id), user_id, review_id, snapshot_id, payload, hashlib.sha256(payload.encode()).hexdigest(), now))
         return report
 
     @staticmethod

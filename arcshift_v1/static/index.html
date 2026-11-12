@@ -17,11 +17,12 @@
       <div class="workspace-label">RISK WORKSPACE</div>
       <nav aria-label="Разделы">
         <button class="nav-button active" data-view="monitor" aria-current="page"><i data-lucide="panels-top-left"></i><span>Мониторинг</span></button>
+        <button class="nav-button" data-view="warnings"><i data-lucide="bell"></i><span>Предупреждения</span><span id="warning-count" class="count" aria-hidden="true" hidden></span></button>
+        <button class="nav-button" data-view="watchlist"><i data-lucide="bookmark"></i><span>Наблюдение</span><span id="watch-count" class="count" aria-hidden="true" hidden></span></button>
         <button class="nav-button" data-view="history"><i data-lucide="table-2"></i><span>История рядов</span></button>
-        <button class="nav-button" data-view="model"><i data-lucide="shield-check"></i><span>Модель</span></button>
-        <button class="nav-button" data-view="watchlist"><i data-lucide="bookmark"></i><span>Наблюдение</span><span id="watch-count" class="count">0</span></button>
         <button class="nav-button" data-view="reviews"><i data-lucide="clipboard-list"></i><span>Разборы</span><span id="review-count" class="count">0</span></button>
         <button class="nav-button" data-view="reports"><i data-lucide="files"></i><span>Отчёты</span><span id="report-count" class="count">0</span></button>
+        <button class="nav-button" data-view="model"><i data-lucide="shield-check"></i><span>Модель</span></button>
         <button class="nav-button" data-view="system"><i data-lucide="database"></i><span>Состояние системы</span></button>
       </nav>
       <div class="sidebar-bottom"><span class="status-dot"></span>Локальная сборка <span class="version">V1</span></div>
@@ -34,7 +35,7 @@
       <div class="environment-banner"><i data-lucide="flask-conical"></i><span>Синтетические данные</span><span class="banner-detail">Текущий риск не рассчитан · Модель не допущена</span></div>
       <main id="main-content">
         <section class="page-heading">
-          <div><p class="eyebrow">ARCSHIFT / РОССИЯ</p><h1 id="page-title">Мониторинг</h1></div>
+          <div><p class="eyebrow">ARCSHIFT / РОССИЯ</p><h1 id="page-title" tabindex="-1">Мониторинг</h1></div>
           <div class="refresh-group"><span id="checked-at">API: проверка</span><button id="refresh-button" class="icon-button" aria-label="Обновить" title="Обновить"><i data-lucide="refresh-cw"></i></button></div>
         </section>
         <div id="notice" class="notice" role="status" hidden></div>
@@ -51,6 +52,20 @@
             <section id="scenario-detail" class="detail-panel" aria-label="Разбор состояния"></section>
           </div>
         </section>
+        <section id="warnings-view" class="view-section" hidden>
+          <div class="section-toolbar workspace-toolbar"><h2>Очередь предупреждений</h2><span class="state-label">Тестовые события</span></div>
+          <div id="warning-queue"></div>
+        </section>
+        <section id="watchlist-view" class="view-section" hidden>
+          <div class="section-toolbar workspace-toolbar">
+            <h2>Отслеживаемые ряды</h2>
+            <form id="watchlist-add" class="watchlist-add" hidden>
+              <select id="watchlist-series" aria-label="Ряд для наблюдения" required></select>
+              <button id="watchlist-submit" type="submit" class="icon-button" title="Добавить ряд" aria-label="Добавить ряд"><i data-lucide="plus"></i></button>
+            </form>
+          </div>
+          <div id="series-watchlist"></div>
+        </section>
         <section id="reviews-view" class="view-section" hidden>
           <div class="section-toolbar"><h2>Журнал разборов</h2><button id="more-reviews" class="button secondary" hidden><i data-lucide="plus"></i>Загрузить ещё</button></div>
           <div class="work-grid"><div id="review-rows" class="review-list"></div><section id="review-detail" class="detail-panel" aria-label="Карточка разбора"></section></div>
@@ -61,7 +76,7 @@
         </section>
         <section id="system-view" class="view-section" hidden><div class="section-toolbar"><h2>Состояние сервиса</h2></div><dl id="system-details" class="system-details"></dl></section>
         <section id="history-view" class="view-section" hidden>
-          <div class="section-toolbar"><h2>Наблюдения и ревизии</h2><span class="state-label">Синтетические примеры</span></div>
+          <div class="section-toolbar"><h2>Наблюдения и ревизии</h2><div id="history-watch-action"></div></div>
           <div class="history-controls">
             <label>Показатель<select id="history-series" aria-label="Показатель"></select></label>
             <label>С<input id="history-start" type="date" aria-label="Начало периода"></label>

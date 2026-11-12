@@ -9,7 +9,11 @@ from fastapi import APIRouter, Depends, Query, Request, Response
 
 from .auth import SESSION_COOKIE, SessionIdentity
 from .auth_api import peer, same_origin, service
-from .workspace import CreateReview, ReviewList, ReviewReport, ReviewView, UpdateReview, WatchlistRequest, WatchlistView, WorkspaceService
+from .workspace import (
+    CreateReview, ReviewList, ReviewReport, ReviewView, SeriesWatchlistRequest,
+    SeriesWatchlistView, UpdateReview, WarningID, WarningQueue, WatchlistRequest,
+    WatchlistView, WorkspaceService,
+)
 
 
 router = APIRouter(prefix="/api/v1/workspace", tags=["local-private-workspace"])
@@ -39,6 +43,26 @@ def watchlist(user: SessionIdentity = Depends(current_user), work: WorkspaceServ
 @router.put("/watchlist", response_model=WatchlistView)
 def save_watchlist(data: WatchlistRequest, user: SessionIdentity = Depends(writing_user), work: WorkspaceService = Depends(workspace)):
     return work.save_watchlist(user.user_id, data)
+
+
+@router.get("/series-watchlist", response_model=SeriesWatchlistView)
+def series_watchlist(user: SessionIdentity = Depends(current_user), work: WorkspaceService = Depends(workspace)):
+    return work.series_watchlist(user.user_id)
+
+
+@router.put("/series-watchlist", response_model=SeriesWatchlistView)
+def save_series_watchlist(data: SeriesWatchlistRequest, user: SessionIdentity = Depends(writing_user), work: WorkspaceService = Depends(workspace)):
+    return work.save_series_watchlist(user.user_id, data)
+
+
+@router.get("/warnings", response_model=WarningQueue)
+def warnings(user: SessionIdentity = Depends(current_user), work: WorkspaceService = Depends(workspace)):
+    return work.warnings(user.user_id)
+
+
+@router.put("/warnings/{warning_id}/review", response_model=ReviewView)
+def acknowledge_warning(warning_id: WarningID, user: SessionIdentity = Depends(writing_user), work: WorkspaceService = Depends(workspace)):
+    return work.acknowledge_warning(user.user_id, warning_id)
 
 
 @router.get("/reviews", response_model=ReviewList)

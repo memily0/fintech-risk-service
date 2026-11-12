@@ -63,7 +63,9 @@ def render_pdf(report):
     review = report.review.review
     signal = review.scenario.signal
     content = [para("ARCSHIFT / СИНТЕТИЧЕСКИЕ ДАННЫЕ"), para("Отчёт о разборе", heading), para("Отчёт: " + str(report.report_id)), para("Снимок данных: " + report.data_snapshot_id), para("Снимок сценария: " + review.snapshot_id), para(f"Разбор {review.review_id} / версия {review.revision}"), para("Текущий прогноз недоступен. Модель и реальные источники не допущены.")]
-    if signal is not None:
+    if review.warning is not None:
+        content.append(para("Тестовое предупреждение: " + review.warning.warning_id))
+    elif signal is not None:
         content.extend([para(f"Только пример: score {signal.score}; {signal.score_kind}"), para(f"Горизонт примера: {signal.horizon_value} календарных дней; модель {signal.model_version}"), para("Информация примера на: " + signal.information_as_of.isoformat())])
     else:
         content.append(para("Сигнал отсутствует: " + review.scenario.state))
