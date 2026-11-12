@@ -1,13 +1,17 @@
-"""Verify local accounts and saved reports over HTTP across a process restart."""
+"""Verify local accounts and reports over HTTP across restart and restore."""
 
+from contextlib import closing
 import csv
 from http.cookiejar import CookieJar
-from io import StringIO
+from io import BytesIO, StringIO
 import json
 from pathlib import Path
+import sqlite3
 from tempfile import TemporaryDirectory
 import urllib.error
 import urllib.request
+
+from pypdf import PdfReader
 
 from arcshift_v1.auth import CSRF_COOKIE, SESSION_COOKIE, read_local_outbox
 from smoke_v1_backend import check_once
@@ -17,11 +21,26 @@ AUTH = "/api/v1/auth"
 WORKSPACE = "/api/v1/workspace"
 FX = "ru.fx.cbr.usd_rub.official"
 NOTE = "Синтетический разбор для проверки сохранённого отчёта."
+PASSWORD = "Synthetic-only-smoke-password"
+
+
+def copy_database(source, destination):
+    with closing(sqlite3.connect(source.as_uri() + "?mode=ro", uri=True)) as original:
+        with closing(sqlite3.connect(destination)) as copy:
+            original.backup(copy)
+            if copy.execute("PRAGMA integrity_check").fetchall() != [("ok",)]:
+                raise RuntimeError("SQLite copy failed integrity check")
+
+
+def pdf_text(payload):
+    return tuple(page.extract_text() for page in PdfReader(BytesIO(payload)).pages)
 
 
 def smoke():
     with TemporaryDirectory(prefix="arcshift-auth-smoke-") as directory:
         database = Path(directory) / "local.sqlite3"
+        backup = Path(directory) / "backup.sqlite3"
+        restored = Path(directory) / "restored.sqlite3"
         jar = CookieJar()
         opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), urllib.request.HTTPCookieProcessor(jar))
         other = urllib.request.build_opener(urllib.request.ProxyHandler({}), urllib.request.HTTPCookieProcessor(CookieJar()))
@@ -29,6 +48,7 @@ def smoke():
         identity = {}
         captured = {}
         updated_review = {}
+        exports = {}
 
         def call(client, base, route, expected, *, data=None, csrf=None, method=None, cookie=None, binary=False):
             headers = {"Origin": base, "Content-Type": "application/json"}
@@ -50,7 +70,7 @@ def smoke():
             return json.loads(payload) if payload else None
 
         def sign_in(client, base, email):
-            credentials = {"email": email, "password": "Synthetic-only-smoke-password"}
+            credentials = {"email": email, "password": PASSWORD}
             call(client, base, AUTH + "/register", 202, data=credentials)
             messages = read_local_outbox(database, email)
             if len(messages) != 1:
@@ -85,6 +105,7 @@ def smoke():
             sign_in(other, base, "other-smoke@example.test")
             if call(other, base, AUTH + "/me", 200) == identity:
                 raise RuntimeError("Both accounts resolved to the same identity")
+            copy_database(database, backup)
 
         def second(base):
             if call(opener, base, AUTH + "/me", 200) != identity:
@@ -101,6 +122,7 @@ def smoke():
             if not pdf.startswith(b"%PDF-"):
                 raise RuntimeError("Saved report did not produce a PDF after restart")
             csv_data = call(opener, base, detail + "/export.csv", 200, binary=True)
+            exports.update(pdf=pdf_text(pdf), csv=csv_data)
             rows = list(csv.DictReader(StringIO(csv_data.decode("utf-8-sig"))))
             if len(rows) != len(captured["observations"]) or any(
                 row["report_id"] != report_id or row["data_snapshot_id"] != captured["data_snapshot_id"] for row in rows
@@ -120,16 +142,33 @@ def smoke():
             call(opener, base, AUTH + "/me", 401)
             call(anonymous, base, detail + "/export.pdf", 401, cookie=session_header)
 
+        def after_restore(base):
+            call(opener, base, AUTH + "/login", 204, data={"email": identity["email"], "password": PASSWORD})
+            if call(opener, base, AUTH + "/me", 200) != identity:
+                raise RuntimeError("Restored account did not preserve its identity")
+            if call(opener, base, WORKSPACE + "/reviews/" + updated_review["review_id"], 200) != updated_review:
+                raise RuntimeError("Restored review did not preserve its latest revision")
+            detail = WORKSPACE + "/reports/" + captured["report_id"]
+            if call(opener, base, detail + "/export.json", 200) != captured:
+                raise RuntimeError("Restored JSON report changed")
+            if call(opener, base, detail + "/export.csv", 200, binary=True) != exports["csv"]:
+                raise RuntimeError("Restored CSV report changed")
+            if pdf_text(call(opener, base, detail + "/export.pdf", 200, binary=True)) != exports["pdf"]:
+                raise RuntimeError("Restored PDF text changed")
+
         one = check_once(database, first)
         two = check_once(database, second)
         if any(cookie.name == SESSION_COOKIE for cookie in jar):
             raise RuntimeError("Session cookie was not cleared")
+        copy_database(backup, restored)
+        three = check_once(restored, after_restore)
         return {
-            "status": "ok", "startup_cycles": 2,
+            "status": "ok", "startup_cycles": 3,
             "session_survived_restart": True, "logout_revoked_session": True,
             "saved_report_survived_restart": True, "private_export_formats_verified": ["json", "csv", "pdf"],
             "foreign_report_access_blocked": True, "revoked_session_export_blocked": True,
-            "all_child_servers_stopped": one["server_stopped_after_check"] and two["server_stopped_after_check"],
+            "separate_sqlite_restore_verified": True,
+            "all_child_servers_stopped": all(run["server_stopped_after_check"] for run in (one, two, three)),
             "real_email_sent": False, "data_mode": "synthetic", "production_ready": False,
         }
 

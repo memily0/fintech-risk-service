@@ -8,6 +8,11 @@ fi
 
 repo=$(git -C "$(dirname "$0")" rev-parse --show-toplevel)
 revision=$(git -C "$repo" rev-parse --verify --end-of-options "$1^{commit}")
+output=${ARCSHIFT_CANDIDATE_OUTPUT_DIR:-}
+if [[ -n "$output" && ( "$output" != /* || -e "$output" ) ]]; then
+    printf 'ARCSHIFT_CANDIDATE_OUTPUT_DIR must be an unused absolute path.\n' >&2
+    exit 2
+fi
 work=$(mktemp -d "${TMPDIR:-/tmp}/arcshift-v1-check.XXXXXXXX")
 trap 'rm -rf -- "$work"' EXIT
 unset PYTHONPATH
@@ -47,4 +52,10 @@ cd "$work/smoke"
 "$installed" -m arcshift_v1.dev_outbox --help >/dev/null
 "$installed" smoke_v1_backend.py
 "$installed" smoke_v1_auth.py
+if [[ -n "$output" ]]; then
+    mkdir -m 700 -- "$output"
+    cp "$work"/wheels/*.whl "$work/source/requirements-v1.lock" "$output/"
+    printf '%s\n' "$revision" > "$output/GIT_SHA"
+    (cd "$output" && "$installed" -m pip hash ./*.whl > WHEEL_HASH)
+fi
 printf 'Candidate checks passed for %s\n' "$revision"

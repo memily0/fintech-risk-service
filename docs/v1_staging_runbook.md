@@ -15,18 +15,23 @@ Playwright (предыдущий прогон: 1.62.1) и установленн
 должен быть абсолютным, так как проверка работает во временном каталоге.
 
 ```sh
-bash tools/check_v1_candidate.sh <SHA>
+SHA=$(git rev-parse HEAD)
+bash tools/check_v1_candidate.sh "$SHA"
 NODE_PATH=/path/to/node_modules ARCSHIFT_RUN_BROWSER=1 \
-  ARCSHIFT_PLAYWRIGHT_CHANNEL=chrome bash tools/check_v1_candidate.sh <SHA>
+  ARCSHIFT_PLAYWRIGHT_CHANNEL=chrome bash tools/check_v1_candidate.sh "$SHA"
 ```
 
 Проверка извлекает Git-архив, ставит зафиксированные зависимости в новые
 окружения, гоняет приложение и офлайн-валидацию. Опционально гоняет браузер.
 Затем собирает wheel, ставит его в третье окружение и запускает оба HTTP-smoke
-вне исходников. Все БД временные. Для офлайн-запуска можно передать
+вне исходников. HTTP-проверка включает восстановление отдельной копии SQLite
+с тем же отчётом JSON/CSV/PDF. Все БД временные. Для офлайн-запуска можно передать
 `PIP_NO_INDEX=1 PIP_FIND_LINKS=/absolute/path/to/wheelhouse`, где содержатся
 все зависимости для выбранной версии Python, ОС и архитектуры. Если браузер
 пропущен, это не считается его приёмкой. Успех не означает допуск прогноза.
+Чтобы сохранить именно проверенный пакет, передайте
+`ARCSHIFT_CANDIDATE_OUTPUT_DIR=/absolute/path/to/new-directory`. После успешного
+прогона там будут wheel, lock-файл, `GIT_SHA` и `WHEEL_HASH`.
 
 ## Установка пакета и запуск
 
@@ -58,9 +63,10 @@ export ARCSHIFT_DB_PATH="$HOME/.local/state/arcshift-staging/fixtures.sqlite3"
 не открывать в firewall. Для доступа разработчика к удалённому хосту:
 
 ```sh
-ssh -N -o ExitOnForwardFailure=yes -L 127.0.0.1:8765:127.0.0.1:8765 <operator>@<staging-host>
+ssh -N -o ExitOnForwardFailure=yes -L 127.0.0.1:8765:127.0.0.1:8765 "$STAGING_SSH_DEST"
 ```
 
+`STAGING_SSH_DEST` — выданный оператору SSH-адрес в формате `user@host`.
 В браузере открыть `http://127.0.0.1:8765/`; если этот порт занят локально,
 изменить только левый порт проброса. Не использовать `ssh -g`. Токен
 подтверждения `.test`-аккаунта оператор получает **на хосте** через
@@ -69,7 +75,7 @@ ssh -N -o ExitOnForwardFailure=yes -L 127.0.0.1:8765:127.0.0.1:8765 <operator>@<
 
 ## Приёмка и отказные сценарии
 
-1. На хосте и через туннель: `/livez`, `/readyz`, `/`,
+1. На хосте и через туннель: `/healthz`, `/readyz`, `/`,
    `/api/v1/auth/capabilities`, `/api/v1/models/status`,
    `/api/v1/signals/current`. Проверить, что готовность положительная,
    `production_ready=false`, `real_mail_delivery=false`, `signal=null`.
