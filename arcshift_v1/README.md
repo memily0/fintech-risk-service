@@ -233,7 +233,7 @@ python3 -m venv .venv-validation
 ```
 
 The core suite deliberately excludes this optional subdirectory. Current
-counts are 177 core/data/API tests and 60 optional temporal/measurement tests. The temporal
+counts are 177 core/data/API tests and 65 optional validation tests. The temporal
 bridge accepts only synthetic standardized components with explicit snapshot,
 threshold, horizon and outcome as-of date. It prepares labels/train masks; it
 does not implement point-in-time feature construction, a frozen M04 run,
@@ -246,6 +246,9 @@ It is not imported by the API and does not admit any source, fit or serve a
 model. The older five-component `prepare_onset_validation` remains a separate
 synthetic prototype with its old target ID; the imported temporal core remains
 unchanged.
+
+The offline [forecast candidate handoff](../docs/v1_forecast_candidate.md)
+records the first proposed model comparison and its synthetic episode scorecard.
 
 ## Saved Reports
 
