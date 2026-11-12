@@ -31,6 +31,10 @@ ARCSHIFT_DB_PATH=<local-file>. Other environments, live mode and public bind
 addresses fail at startup. There is no automatic .env or credential loading.
 Do not bypass these restrictions with a separate public Uvicorn command.
 
+For candidate verification and a closed team preview, see the
+[staging runbook](../docs/v1_staging_runbook.md) and the
+[V1 team handoff](../docs/v1_release_handoff.md).
+
 ## Local Storage And Migrations
 
 Default storage is SQLite at .arcshift-v1/fixtures.sqlite3 in the product root.
