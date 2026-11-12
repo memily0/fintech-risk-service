@@ -8,7 +8,7 @@ from .settings import Settings
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Inspect local synthetic verification messages; sensitive test tokens are printed")
+    parser = argparse.ArgumentParser(description="Inspect local synthetic account messages; sensitive test tokens are printed")
     parser.add_argument("--email", required=True, help="Synthetic address ending in .test")
     args = parser.parse_args()
     settings = Settings.from_env()

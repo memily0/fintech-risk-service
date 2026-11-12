@@ -23,6 +23,21 @@ Do not include its output, the SQLite DB or cookies in Git/review packages.
 Paste the token into the confirmation form, then sign in. There is no outbox
 HTTP endpoint, automatic confirmation, pre-created account or shared login.
 
+## Local Password Recovery
+
+In the login dialog, choose **Восстановить доступ**, enter the verified
+`.test` address and request a code. Run the same outbox command and use the
+message with `purpose=reset_password` in the reset form. Use a new test-only
+password and sign in again. An existing code can be entered via
+**Ввести код сброса** without requesting a replacement.
+
+The request returns the same generic acknowledgement for a verified,
+unverified or absent test account. Only a verified account gets a code.
+Migration 007 adds separate recovery tokens and local messages without
+replacing existing verification records. A new request invalidates the prior
+code. Successful reset consumes the code, deletes its outbox entry and
+revokes all sessions for the affected account in the same transaction.
+
 ## Candidate Contract
 
 `v1-local-auth.1` is separate from unchanged fixture contract `v1-fixture.1`.
@@ -32,6 +47,8 @@ HTTP endpoint, automatic confirmation, pre-created account or shared login.
 | GET /api/v1/auth/capabilities | Explicit local-only boundaries |
 | POST /api/v1/auth/register | Generic 202 for first/duplicate registration |
 | POST /api/v1/auth/verify-email | Consume one unexpired token; 204 |
+| POST /api/v1/auth/password-reset/request | Generic 202 for a `.test` address; local outbox only |
+| POST /api/v1/auth/password-reset/confirm | Consume one unexpired reset token, change password and revoke sessions; 204 |
 | POST /api/v1/auth/login | Require verified identity; set cookies; 204 |
 | GET /api/v1/auth/me | Return only the current synthetic identity |
 | POST /api/v1/auth/logout | CSRF check, server-side revocation; 204 |
@@ -48,7 +65,7 @@ revokes the server record. Session cookies are host-only, HttpOnly and
 SameSite=Strict. **Secure=false is deliberate for loopback HTTP only** and
 must not be used for a deployed site. Proxy headers are not trusted.
 
-Development defaults: verification expires after 900 seconds, absolute session
+Development defaults: verification and recovery expire after 900 seconds, absolute session
 expiry after 3600 seconds, and 10 attempts per action/IP/identity in a fixed
 60-second window. Rate counters survive restart; forwarded-address headers
 do not bypass them. These are test defaults, not approved public policies.
@@ -56,14 +73,14 @@ Errors do not echo passwords/tokens; unknown, unverified and wrong-password
 logins receive the same generic response. SQLite files are chmod 0600;
 new application runtime directories use 0700.
 
-The local outbox intentionally contains plaintext test verification tokens
-until consumption; records are deleted on successful verification. Expired
+The local outbox intentionally contains plaintext test verification and reset
+tokens until consumption; records are deleted on successful confirmation. Expired
 records are not automatically purged. This is a debug mechanism, not a
 production mail queue or a production secret-at-rest design.
 
 ## Still Open
 
-Resend, password reset/recovery, account deletion/retention, compromised-password
+Verification resend, public password recovery, account deletion/retention, compromised-password
 checks, idle expiry, real transactional mail, delivery failures, public abuse
 and load controls, HTTPS/reverse-proxy configuration, production DB/backup
 acceptance, privacy documentation and independent security review remain open.

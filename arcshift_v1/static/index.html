@@ -100,12 +100,20 @@
   </div>
   <dialog id="auth-dialog" aria-labelledby="auth-title">
     <div class="dialog-heading"><h2 id="auth-title">Аккаунт</h2><button id="close-auth" class="icon-button" aria-label="Закрыть" title="Закрыть"><i data-lucide="x"></i></button></div>
-    <div class="segmented" role="tablist" aria-label="Авторизация"><button data-auth="login" role="tab" aria-selected="true" class="selected">Вход</button><button data-auth="register" role="tab" aria-selected="false">Регистрация</button><button data-auth="verify-email" role="tab" aria-selected="false">Подтверждение</button></div>
+    <div id="auth-tabs" class="segmented" role="tablist" aria-label="Авторизация"><button data-auth="login" role="tab" aria-selected="true" class="selected">Вход</button><button data-auth="register" role="tab" aria-selected="false">Регистрация</button><button data-auth="verify-email" role="tab" aria-selected="false">Подтверждение</button></div>
     <form id="auth-form">
-      <div id="credential-fields"><label>Тестовая почта (.test)<input id="email-input" type="email" autocomplete="username" maxlength="254" placeholder="analyst@example.test" required></label><label>Пароль<input id="password-input" type="password" autocomplete="current-password" minlength="15" maxlength="128" required></label></div>
-      <label id="token-field" hidden>Токен подтверждения<input id="token-input" type="password" autocomplete="off" minlength="32" maxlength="128"></label>
+      <div id="credential-fields">
+        <label id="email-field">Тестовая почта (.test)<input id="email-input" type="email" autocomplete="username" maxlength="254" placeholder="analyst@example.test" required></label>
+        <label id="token-field" hidden><span id="token-label">Токен подтверждения</span><input id="token-input" type="password" autocomplete="off" minlength="32" maxlength="128"></label>
+        <label id="password-field"><span id="password-label">Пароль</span><input id="password-input" type="password" autocomplete="current-password" minlength="15" maxlength="128" required></label>
+      </div>
       <p id="auth-status" role="status"></p><button id="auth-submit" type="submit" class="button primary"><i data-lucide="log-in"></i><span>Войти</span></button>
     </form>
+    <div class="auth-recovery-actions">
+      <button id="request-reset" type="button" class="button secondary"><i data-lucide="key-round"></i>Восстановить доступ</button>
+      <button id="enter-reset" type="button" class="button secondary"><i data-lucide="check"></i>Ввести код сброса</button>
+      <button id="back-to-login" type="button" class="button secondary" hidden><i data-lucide="arrow-left"></i>Ко входу</button>
+    </div>
   </dialog>
   <section id="print-report" class="print-report" aria-label="Отчёт"></section>
 </body>

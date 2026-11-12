@@ -12,15 +12,18 @@ from .schemas import SyntheticModel
 router = APIRouter(prefix="/api/v1/auth", tags=["local-test-accounts"])
 
 
-class Credentials(BaseModel):
+class EmailRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     email: Annotated[str, Field(min_length=3, max_length=254, strict=True)]
-    password: SecretStr
 
     @field_validator("email")
     @classmethod
     def test_email_only(cls, value):
         return normalize_test_email(value)
+
+
+class Credentials(EmailRequest):
+    password: SecretStr
 
     @field_validator("password")
     @classmethod
@@ -42,12 +45,16 @@ class VerificationRequest(BaseModel):
         return value
 
 
+class PasswordResetConfirmation(VerificationRequest):
+    password: Annotated[SecretStr, Field(min_length=15, max_length=128)]
+
+
 class AuthView(SyntheticModel):
     auth_contract_version: Literal["v1-local-auth.1"] = "v1-local-auth.1"
     production_ready: Literal[False] = False
 
 
-class RegistrationAccepted(AuthView):
+class OutboxRequestAccepted(AuthView):
     status: Literal["accepted"] = "accepted"
     delivery_mode: Literal["local_outbox_only"] = "local_outbox_only"
 
@@ -62,7 +69,7 @@ class AuthCapabilities(AuthView):
     local_registration_and_verification: Literal[True] = True
     local_login_logout_sessions: Literal[True] = True
     real_mail_delivery: Literal[False] = False
-    password_recovery_implemented: Literal[False] = False
+    password_recovery_implemented: Literal[True] = True
     verification_resend_implemented: Literal[False] = False
     allowed_email_domain_suffix: Literal[".test"] = ".test"
 
@@ -89,10 +96,22 @@ def capabilities(auth: AuthService = Depends(service)):
     return AuthCapabilities()
 
 
-@router.post("/register", status_code=202, response_model=RegistrationAccepted, dependencies=[Depends(same_origin)])
+@router.post("/register", status_code=202, response_model=OutboxRequestAccepted, dependencies=[Depends(same_origin)])
 def register(data: Credentials, request: Request, auth: AuthService = Depends(service)):
     auth.register(data.email, data.password.get_secret_value(), peer(request))
-    return RegistrationAccepted()
+    return OutboxRequestAccepted()
+
+
+@router.post("/password-reset/request", status_code=202, response_model=OutboxRequestAccepted, dependencies=[Depends(same_origin)])
+def request_password_reset(data: EmailRequest, request: Request, auth: AuthService = Depends(service)):
+    auth.request_password_reset(data.email, peer(request))
+    return OutboxRequestAccepted()
+
+
+@router.post("/password-reset/confirm", status_code=204, dependencies=[Depends(same_origin)])
+def confirm_password_reset(data: PasswordResetConfirmation, request: Request, auth: AuthService = Depends(service)):
+    auth.reset_password(data.token.get_secret_value(), data.password.get_secret_value(), peer(request))
+    return Response(status_code=204)
 
 
 @router.post("/verify-email", status_code=204, dependencies=[Depends(same_origin)])

@@ -79,7 +79,8 @@ class MigrationTests(DatabaseTestCase):
 
     def test_upgrade_from_v5_preserves_unlinked_reviews_bookmarks_and_reports(self):
         directory = self.copy_migrations()
-        (directory / "006_local_warning_workspace.sql").unlink()
+        for migration in load_migrations(directory)[5:]:
+            (directory / migration.name).unlink()
         self.assertEqual(migrate(self.path, directory), 5)
         checksum = hashlib.sha256(b"{}").hexdigest()
         with closing(connect(self.path)) as connection:

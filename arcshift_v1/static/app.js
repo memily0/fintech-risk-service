@@ -21,6 +21,7 @@ const transitions = { acknowledged: ["acknowledged", "in_review", "dismissed"], 
 const accountChannel = typeof BroadcastChannel === "undefined" ? null : new BroadcastChannel("arcshift-local-account");
 const messages = { invalid_credentials: "Не удалось войти: проверьте данные и подтверждение почты.", invalid_verification: "Токен недействителен или истёк.", auth_rate_limited: "Слишком много попыток. Повторите через минуту.", invalid_request: "Проверьте поля. Почта должна оканчиваться на .test, пароль — от 15 до 128 символов.", authentication_required: "Сессия истекла. Требуется вход.", review_revision_conflict: "Запись уже изменена. Обновите журнал; ваш текст остался в поле.", invalid_review_transition: "Этот переход статуса недоступен.", csrf_failed: "Сессия изменилась. Войдите повторно.", local_auth_unavailable: "Локальная авторизация недоступна.", local_storage_unavailable: "Хранилище недоступно. Изменения не сохранены.", fixture_store_unavailable: "Данные недоступны. Текущий прогноз не рассчитан." };
 Object.assign(messages, { report_snapshot_conflict: "Снимок данных изменился. Обновите данные перед сохранением отчёта.", report_render_unavailable: "Не удалось сформировать PDF. Отчёт сохранён; доступны JSON и CSV.", report_series_not_supported: "Выбранный ряд недоступен для этого отчёта." });
+messages.invalid_password_reset = "Код сброса недействителен или истёк.";
 
 function node(tag, className, text) {
   const result = document.createElement(tag);
@@ -552,18 +553,35 @@ async function checkConnection() {
   catch (error) { state.health = null; $("connection-state").textContent = "API недоступен"; throw error; }
 }
 function authTab(mode) {
-  state.authMode = mode; const verify = mode === "verify-email";
+  const requestReset = mode === "password-reset/request", confirmReset = mode === "password-reset/confirm";
+  const verify = mode === "verify-email", recovery = requestReset || confirmReset;
+  if (state.authMode !== mode) { $("password-input").value = ""; $("token-input").value = ""; }
+  state.authMode = mode;
   document.querySelectorAll("[data-auth]").forEach((item) => { item.classList.toggle("selected", item.dataset.auth === mode); item.setAttribute("aria-selected", String(item.dataset.auth === mode)); });
-  $("credential-fields").hidden = verify; $("token-field").hidden = !verify;
-  $("email-input").required = !verify; $("password-input").required = !verify; $("token-input").required = verify;
-  $("password-input").autocomplete = mode === "register" ? "new-password" : "current-password";
-  const text = mode === "login" ? "Войти" : mode === "register" ? "Зарегистрироваться" : "Подтвердить";
+  $("auth-title").textContent = recovery ? "Восстановление доступа" : "Аккаунт";
+  $("auth-tabs").hidden = recovery;
+  $("request-reset").hidden = mode !== "login";
+  $("enter-reset").hidden = mode !== "login" && !requestReset;
+  $("back-to-login").hidden = !recovery;
+  $("email-field").hidden = verify || confirmReset;
+  $("password-field").hidden = verify || requestReset;
+  $("token-field").hidden = !verify && !confirmReset;
+  $("email-input").required = !$("email-field").hidden;
+  $("password-input").required = !$("password-field").hidden;
+  $("token-input").required = !$("token-field").hidden;
+  $("token-label").textContent = confirmReset ? "Код сброса" : "Токен подтверждения";
+  $("password-label").textContent = confirmReset ? "Новый пароль" : "Пароль";
+  $("password-input").autocomplete = mode === "register" || confirmReset ? "new-password" : "current-password";
+  const text = mode === "login" ? "Войти" : mode === "register" ? "Зарегистрироваться" : requestReset ? "Запросить код" : confirmReset ? "Сменить пароль" : "Подтвердить";
   $("auth-submit").replaceChildren(icon(mode === "login" ? "log-in" : "check"), node("span", "", text)); $("auth-status").textContent = ""; updateIcons();
 }
 function openAuth() { authTab("login"); $("auth-dialog").showModal(); }
 document.querySelectorAll("[data-view]").forEach((item) => item.addEventListener("click", () => { if (!canLeaveReview()) return; state.view = item.dataset.view; notice(""); render(); }));
 document.querySelectorAll("[data-auth]").forEach((item) => item.addEventListener("click", () => authTab(item.dataset.auth)));
 $("login-button").addEventListener("click", openAuth);
+$("request-reset").addEventListener("click", () => { authTab("password-reset/request"); $("email-input").focus(); });
+$("enter-reset").addEventListener("click", () => { authTab("password-reset/confirm"); $("token-input").focus(); });
+$("back-to-login").addEventListener("click", () => { authTab("login"); $("email-input").focus(); });
 $("close-auth").addEventListener("click", () => $("auth-dialog").close());
 $("auth-dialog").addEventListener("close", () => { $("password-input").value = ""; $("token-input").value = ""; });
 $("scenario-search").addEventListener("input", renderMonitor);
@@ -591,11 +609,21 @@ $("auth-form").addEventListener("submit", (event) => {
   (async () => {
     try {
       const mode = state.authMode;
-      const data = mode === "verify-email" ? { token: $("token-input").value } : { email: $("email-input").value, password: $("password-input").value };
+      const email = $("email-input").value, token = $("token-input").value, password = $("password-input").value;
+      const data = mode === "verify-email" ? { token } : mode === "password-reset/request" ? { email } :
+        mode === "password-reset/confirm" ? { token, password } : { email, password };
       await api("/api/v1/auth/" + mode, { method: "POST", data });
       $("password-input").value = ""; $("token-input").value = "";
       if (mode === "register") { authTab("verify-email"); $("auth-status").textContent = "Заявка принята. Доставка: локальный тестовый outbox."; }
       else if (mode === "verify-email") { authTab("login"); $("auth-status").textContent = "Тестовая почта подтверждена."; }
+      else if (mode === "password-reset/request") {
+        authTab("password-reset/confirm"); $("token-input").focus();
+        $("auth-status").textContent = "Запрос принят. Доставка: локальный тестовый outbox.";
+      } else if (mode === "password-reset/confirm") {
+        clearPersonal(); accountChannel?.postMessage("changed"); render();
+        authTab("login"); $("password-input").focus();
+        $("auth-status").textContent = "Пароль изменён. Войдите заново.";
+      }
       else {
         clearPersonal(); const generation = state.generation;
         const user = await api("/api/v1/auth/me");

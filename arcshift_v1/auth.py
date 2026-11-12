@@ -61,9 +61,10 @@ class AuthPolicy:
     session_seconds: int = 3600
     rate_window_seconds: int = 60
     rate_limit: int = 10
+    password_reset_seconds: int = 900
 
     def __post_init__(self):
-        if any(type(value) is not int or value <= 0 for value in (self.verification_seconds, self.session_seconds, self.rate_window_seconds, self.rate_limit)):
+        if any(type(value) is not int or value <= 0 for value in (self.verification_seconds, self.session_seconds, self.rate_window_seconds, self.rate_limit, self.password_reset_seconds)):
             raise ValueError("Local auth policy values must be positive integers")
 
 
@@ -169,11 +170,49 @@ class AuthService:
         session, csrf = secrets.token_urlsafe(32), secrets.token_urlsafe(32)
         now = int(self.clock())
         with self.transaction() as connection:
+            # A reset may have completed while password verification was running.
+            if connection.execute("SELECT 1 FROM local_users WHERE user_id=? AND password_hash=?", (row["user_id"], encoded)).fetchone() is None:
+                raise AuthFailure("invalid_credentials")
             if valid_token(previous_session):
                 connection.execute("UPDATE local_sessions SET revoked_at=? WHERE session_hash=? AND revoked_at IS NULL", (now, digest(previous_session)))
             connection.execute("INSERT INTO local_sessions VALUES (?, ?, ?, ?, ?, NULL)", (digest(session), row["user_id"], digest(csrf), now, now + self.policy.session_seconds))
             self._event(connection, row["user_id"], "login", now)
         return session, csrf
+
+    def request_password_reset(self, email, peer):
+        email = normalize_test_email(email)
+        self._rate_limit("request_password_reset", peer, email)
+        token = secrets.token_urlsafe(32)
+        token_hash = digest(token)
+        now = int(self.clock())
+        with self.transaction() as connection:
+            user = connection.execute("SELECT user_id FROM local_users WHERE email=? AND verified=1 AND synthetic=1", (email,)).fetchone()
+            if user is None:
+                return
+            user_id = user["user_id"]
+            connection.execute("DELETE FROM local_password_resets WHERE user_id=?", (user_id,))
+            connection.execute("INSERT INTO local_password_resets VALUES (?, ?, ?)", (user_id, token_hash, now + self.policy.password_reset_seconds))
+            connection.execute("INSERT INTO local_password_reset_outbox VALUES (?, ?, ?)", (token_hash, token, now))
+
+    def reset_password(self, token, password, peer):
+        self._rate_limit("reset_password", peer)
+        if not valid_token(token):
+            raise AuthFailure("invalid_password_reset", 400)
+        if not isinstance(password, str) or not 15 <= len(password) <= 128:
+            raise ValueError("Password must contain 15 to 128 characters")
+        token_hash = digest(token)
+        with closing(connect(self.path, readonly=True)) as connection:
+            row = connection.execute("SELECT user_id FROM local_password_resets WHERE token_hash=? AND expires_at>?", (token_hash, int(self.clock()))).fetchone()
+        if row is None:
+            raise AuthFailure("invalid_password_reset", 400)
+        encoded = password_hasher().hash(password)
+        with self.transaction() as connection:
+            now = int(self.clock())
+            consumed = connection.execute("DELETE FROM local_password_resets WHERE token_hash=? AND expires_at>?", (token_hash, now))
+            if consumed.rowcount != 1:
+                raise AuthFailure("invalid_password_reset", 400)
+            connection.execute("UPDATE local_users SET password_hash=? WHERE user_id=?", (encoded, row["user_id"]))
+            connection.execute("UPDATE local_sessions SET revoked_at=? WHERE user_id=? AND revoked_at IS NULL", (now, row["user_id"]))
 
     def authenticate(self, session) -> SessionIdentity:
         if not valid_token(session):
@@ -214,7 +253,14 @@ def read_local_outbox(path: Path, email: str, now=None):
     timestamp = int(time.time() if now is None else now)
     with closing(connect(path, readonly=True)) as connection:
         rows = connection.execute(
-            "SELECT o.purpose, o.token, o.expires_at FROM local_dev_outbox o JOIN local_users u ON u.user_id=o.user_id WHERE u.email=? AND o.expires_at>? ORDER BY o.created_at",
-            (email, timestamp),
+            """SELECT purpose, token, expires_at FROM (
+                   SELECT o.purpose, o.token, o.expires_at, o.created_at AS created_at FROM local_dev_outbox o
+                   JOIN local_users u ON u.user_id=o.user_id WHERE u.email=? AND o.expires_at>?
+                   UNION ALL
+                   SELECT 'reset_password', o.token, r.expires_at, o.created_at FROM local_password_reset_outbox o
+                   JOIN local_password_resets r ON r.token_hash=o.token_hash
+                   JOIN local_users u ON u.user_id=r.user_id WHERE u.email=? AND r.expires_at>?
+               ) ORDER BY created_at, purpose""",
+            (email, timestamp, email, timestamp),
         ).fetchall()
     return [dict(row) for row in rows]

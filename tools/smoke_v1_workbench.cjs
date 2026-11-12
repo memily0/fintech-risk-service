@@ -316,10 +316,35 @@ async function main() {
     assert.equal(await page.locator("#report-detail").textContent(), "");
     assert.equal((await page.request.get(base + "/api/v1/workspace/reports/" + savedReportId + "/export.pdf")).status(), 401);
     await tab.close();
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.locator("#login-button").click();
+    await page.getByRole("button", { name: "Восстановить доступ" }).click();
+    await page.locator("#email-input").fill("browser@example.test");
+    await page.getByRole("button", { name: "Запросить код" }).click();
+    await page.getByRole("button", { name: "Сменить пароль" }).waitFor();
+    assert.ok(await page.evaluate(() => {
+      const dialog = document.getElementById("auth-dialog").getBoundingClientRect();
+      return dialog.left >= 0 && dialog.right <= window.innerWidth;
+    }));
+    if (evidence) await page.screenshot({ path: path.join(evidence, "recovery-mobile-390.png"), fullPage: true });
+    const resetOutbox = spawnSync(python, ["-m", "arcshift_v1.dev_outbox", "--email", "browser@example.test"], { cwd: root, env, encoding: "utf8" });
+    assert.equal(resetOutbox.status, 0);
+    const resetMessage = JSON.parse(resetOutbox.stdout).messages.find((item) => item.purpose === "reset_password");
+    const resetPassword = "Changed-synthetic-browser-password";
+    await page.locator("#token-input").fill(resetMessage.token);
+    await page.locator("#password-input").fill(resetPassword);
+    await page.getByRole("button", { name: "Сменить пароль" }).click();
+    await page.getByText("Пароль изменён. Войдите заново.").waitFor();
+    await page.locator("#password-input").fill(resetPassword);
+    await page.locator("#auth-submit").click();
+    await page.locator("#auth-dialog").waitFor({ state: "hidden" });
+    await page.locator('[data-view="watchlist"]').click();
+    await page.locator(".series-row").filter({ hasText: usd }).waitFor();
     assert.deepEqual(errors, []); assert.deepEqual(external, []);
     await browser.close(); browser = null;
     child.kill("SIGTERM"); await exit; stopped = true;
-    return { status: "ok", viewports: [1440, 390, 320], synthetic_warning_queue_review_and_report_verified: true, private_series_watchlists_verified: true, missing_series_and_mixed_snapshot_handled: true, immutable_saved_report_and_private_PDF_verified: true, model_gate_and_no_current_score_verified: true, parser_history_and_revisions_verified: true, full_account_flow: true, watchlist_and_review_persisted: true, report_json_csv_and_print_verified: true, foreign_report_access_blocked: true, cross_tab_logout_cleared_private_state: true, script_injection_blocked: true, external_requests: 0, browser_errors: 0, server_stopped_after_check: true, production_ready: false };
+    return { status: "ok", viewports: [1440, 390, 320], local_password_recovery_verified: true, synthetic_warning_queue_review_and_report_verified: true, private_series_watchlists_verified: true, missing_series_and_mixed_snapshot_handled: true, immutable_saved_report_and_private_PDF_verified: true, model_gate_and_no_current_score_verified: true, parser_history_and_revisions_verified: true, full_account_flow: true, watchlist_and_review_persisted: true, report_json_csv_and_print_verified: true, foreign_report_access_blocked: true, cross_tab_logout_cleared_private_state: true, script_injection_blocked: true, external_requests: 0, browser_errors: 0, server_stopped_after_check: true, production_ready: false };
   } finally {
     if (browser) await browser.close();
     if (child && !stopped && child.exitCode === null) {

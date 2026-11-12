@@ -1,22 +1,26 @@
 """Local .test account flows only; no real identity, email delivery or public deployment."""
 
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import closing
 import json
 from pathlib import Path
 import stat
 from tempfile import TemporaryDirectory
+from threading import Event
 import unittest
+from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 
 from arcshift_v1.api import create_app
-from arcshift_v1.auth import AuthFailure, AuthPolicy, AuthService, CSRF_COOKIE, SESSION_COOKIE, digest, read_local_outbox
+from arcshift_v1.auth import AuthFailure, AuthPolicy, AuthService, CSRF_COOKIE, SESSION_COOKIE, digest, password_hasher, read_local_outbox
 from arcshift_v1.database import connect
 from arcshift_v1.settings import Settings
 
 
 EMAIL = "analyst@example.test"
 PASSWORD = "Synthetic-only-password-for-local-tests"
+NEW_PASSWORD = "Updated-synthetic-only-password"
 ORIGIN = {"Origin": "http://testserver"}
 BASE = "/api/v1/auth"
 
@@ -247,14 +251,122 @@ class LocalAuthTests(unittest.TestCase):
         self.client.cookies.set(SESSION_COOKIE, session)
         self.assertEqual(self.client.get(BASE + "/me").json(), identity)
 
-    def test_no_outbox_http_or_unimplemented_recovery_and_no_public_claim(self):
+    def test_no_outbox_http_or_public_claim(self):
         for suffix in ("/outbox", "/users", "/password-reset"):
             self.assertEqual(self.client.get(BASE + suffix).status_code, 404)
         capabilities = self.client.get(BASE + "/capabilities").json()
         self.assertFalse(capabilities["real_mail_delivery"])
-        self.assertFalse(capabilities["password_recovery_implemented"])
+        self.assertTrue(capabilities["password_recovery_implemented"])
+        self.assertFalse(capabilities["verification_resend_implemented"])
         self.assertFalse(capabilities["production_ready"])
         self.assertFalse(self.client.get("/api/v1/capabilities").json()["public_registration_implemented"])
+
+    def test_reset_request_is_generic_and_only_verified_test_accounts_get_a_code(self):
+        self.verified()
+        pending = "pending@example.test"
+        self.register(pending)
+        for email in (EMAIL, pending, "absent@example.test"):
+            response = self.post("/password-reset/request", {"email": email})
+            self.assertEqual(response.status_code, 202)
+            self.assertEqual(response.json(), {"synthetic": True, "auth_contract_version": "v1-local-auth.1", "production_ready": False, "status": "accepted", "delivery_mode": "local_outbox_only"})
+        self.assertEqual(read_local_outbox(self.path, pending, now=self.now)[0]["purpose"], "verify_email")
+        self.assertEqual(read_local_outbox(self.path, "absent@example.test", now=self.now), [])
+        message, = read_local_outbox(self.path, EMAIL, now=self.now)
+        self.assertEqual(message["purpose"], "reset_password")
+        self.assertEqual(self.query("SELECT token_hash FROM local_password_resets"), [{"token_hash": digest(message["token"])}])
+        self.assertEqual(self.post("/password-reset/request", {"email": "real@example.com"}).status_code, 422)
+        self.assertEqual(self.post("/password-reset/request", {"email": EMAIL}, Origin="http://other.test").status_code, 403)
+
+    def test_reset_revokes_all_sessions_of_owner_and_preserves_other_accounts(self):
+        self.verified()
+        other = "other@example.test"
+        self.verified(other)
+        first, _ = self.auth.login(EMAIL, PASSWORD, "a")
+        second, _ = self.auth.login(EMAIL, PASSWORD, "b")
+        unrelated, _ = self.auth.login(other, PASSWORD, "c")
+        self.assertEqual(self.post("/password-reset/request", {"email": EMAIL}).status_code, 202)
+        token = self.token()
+        payload = {"token": token, "password": NEW_PASSWORD}
+        self.assertEqual(self.post("/password-reset/confirm", payload, Origin="http://other.test").status_code, 403)
+        self.assertEqual(self.post("/password-reset/confirm", {**payload, "password": "short"}).status_code, 422)
+        self.assertEqual(self.post("/password-reset/confirm", payload).status_code, 204)
+        self.assertEqual(read_local_outbox(self.path, EMAIL, now=self.now), [])
+        self.assertEqual(self.post("/password-reset/confirm", payload).status_code, 400)
+        for session in (first, second):
+            self.client.cookies.set(SESSION_COOKIE, session)
+            self.assertEqual(self.client.get(BASE + "/me").status_code, 401)
+        self.assertEqual(self.auth.authenticate(unrelated).email, other)
+        self.assertEqual(self.post("/login", self.credentials()).status_code, 401)
+        self.assertEqual(self.post("/login", self.credentials(password=NEW_PASSWORD)).status_code, 204)
+
+    def test_reset_code_is_replaced_expires_and_cannot_verify_email(self):
+        self.verified()
+        self.post("/password-reset/request", {"email": EMAIL})
+        first = self.token()
+        self.post("/password-reset/request", {"email": EMAIL})
+        second = self.token()
+        self.assertNotEqual(first, second)
+        self.assertEqual(len(self.query("SELECT * FROM local_password_reset_outbox")), 1)
+        self.assertEqual(self.post("/password-reset/confirm", {"token": first, "password": NEW_PASSWORD}).status_code, 400)
+        self.assertEqual(self.post("/verify-email", {"token": second}).status_code, 400)
+        self.now += self.auth.policy.password_reset_seconds
+        self.assertEqual(read_local_outbox(self.path, EMAIL, now=self.now), [])
+        self.assertEqual(self.post("/password-reset/confirm", {"token": second, "password": NEW_PASSWORD}).status_code, 400)
+        self.login()
+
+    def test_reset_rate_limits_are_applied_before_account_or_token_lookup(self):
+        self.app.state.auth_service = AuthService(self.path, AuthPolicy(rate_limit=1), lambda: self.now)
+        for path, payload, status in (
+            ("/password-reset/request", {"email": "absent@example.test"}, 202),
+            ("/password-reset/confirm", {"token": "a" * 43, "password": NEW_PASSWORD}, 400),
+        ):
+            self.assertEqual(self.post(path, payload).status_code, status)
+            self.assertEqual(self.post(path, payload).status_code, 429)
+
+    def test_concurrent_reset_confirmation_consumes_code_once(self):
+        self.verified()
+        self.auth.request_password_reset(EMAIL, "recovery")
+        token = self.token()
+
+        def confirm(peer):
+            try:
+                self.auth.reset_password(token, NEW_PASSWORD, peer)
+                return "accepted"
+            except AuthFailure as error:
+                return error.code
+
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            self.assertCountEqual(pool.map(confirm, ("first", "second")), ["accepted", "invalid_password_reset"])
+        self.assertEqual(read_local_outbox(self.path, EMAIL, now=self.now), [])
+
+    def test_login_started_before_reset_cannot_create_a_post_reset_session(self):
+        self.verified()
+        self.auth.request_password_reset(EMAIL, "recovery")
+        ready, release = Event(), Event()
+        hasher = password_hasher()
+
+        class DelayedVerification:
+            hash = staticmethod(hasher.hash)
+
+            @staticmethod
+            def verify(password, encoded):
+                verified = hasher.verify(password, encoded)
+                ready.set()
+                if not release.wait(5):
+                    raise RuntimeError("Password verification test timed out")
+                return verified
+
+        with patch("arcshift_v1.auth.password_hasher", return_value=DelayedVerification()), ThreadPoolExecutor(max_workers=1) as pool:
+            future = pool.submit(self.auth.login, EMAIL, PASSWORD, "old-login")
+            try:
+                self.assertTrue(ready.wait(5))
+                self.auth.reset_password(self.token(), NEW_PASSWORD, "recovery")
+            finally:
+                release.set()
+            with self.assertRaises(AuthFailure) as rejected:
+                future.result(timeout=5)
+            self.assertEqual(rejected.exception.code, "invalid_credentials")
+        self.assertEqual(self.query("SELECT * FROM local_sessions"), [])
 
     def test_database_restricted_permissions_and_event_log_has_no_credentials(self):
         self.verified()
